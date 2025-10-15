@@ -1,6 +1,4 @@
 "use strict";
-
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable("orders", {
@@ -13,12 +11,9 @@ module.exports = {
       customer_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
-        references: {
-          model: "customers",
-          key: "id",
-        },
+        references: { model: "customers", key: "id" },
         onUpdate: "CASCADE",
-        onDelete: "CASCADE",
+        onDelete: "SET NULL",
       },
       order_number: {
         type: Sequelize.STRING(100),
@@ -27,12 +22,10 @@ module.exports = {
       },
       order_date: {
         type: Sequelize.DATE,
-        allowNull: true,
+        allowNull: false,
+        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
       },
-      total_amount: {
-        type: Sequelize.DECIMAL(12, 2),
-        allowNull: true,
-      },
+      total_amount: { type: Sequelize.DECIMAL(12, 2), allowNull: true },
       discount_amount: {
         type: Sequelize.DECIMAL(12, 2),
         allowNull: false,
@@ -41,17 +34,11 @@ module.exports = {
       voucher_id: {
         type: Sequelize.INTEGER,
         allowNull: true,
-        references: {
-          model: "vouchers",
-          key: "id",
-        },
+        references: { model: "vouchers", key: "id" },
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
       },
-      final_amount: {
-        type: Sequelize.DECIMAL(12, 2),
-        allowNull: true,
-      },
+      final_amount: { type: Sequelize.DECIMAL(12, 2), allowNull: true },
       status: {
         type: Sequelize.STRING(50),
         allowNull: false,
@@ -70,9 +57,11 @@ module.exports = {
         ),
       },
     });
-  },
 
-  async down(queryInterface, Sequelize) {
+    await queryInterface.addIndex("orders", ["customer_id"]);
+    await queryInterface.addIndex("orders", ["order_number"]);
+  },
+  async down(queryInterface) {
     await queryInterface.dropTable("orders");
   },
 };

@@ -1,9 +1,10 @@
-const { User, Customer } = require("@/models/index");
+const { User, Customer, Cart } = require("@/models/index");
 const { hash, compare } = require("@/utils/bcrypt");
 const jwtService = require("./jwt.service");
 const refreshTokenService = require("./refreshToken.service");
 const { MAIL_SECRET } = require("@/config/auth");
 const queue = require("@/utils/queue");
+const throwError = require("@/utils/throwError");
 
 const register = async (data, res) => {
   try {
@@ -21,23 +22,40 @@ const register = async (data, res) => {
     }
 
     // 2️⃣ Tạo customer tương ứng
-    await Customer.create({
+    const newCustomer = await Customer.create({
       user_id: newUser.id,
       first_name: data.firstName,
       last_name: data.lastName,
       email: data.email,
     });
 
-    // 3️⃣ Gửi email xác thực
+    if (!newCustomer?.id) {
+      throw new Error("Không thể tạo customer.");
+    }
+
+    // 3️⃣ Tạo cart cho customer
+    const newCart = await Cart.create({
+      customer_id: newCustomer.id,
+      // Có thể thêm các trường mặc định khác nếu cần
+      status: "active",
+      total_amount: 0,
+    });
+
+    console.log(`Đã tạo cart #${newCart.id} cho customer #${newCustomer.id}`);
+
+    // 4️⃣ Gửi email xác thực
     queue.dispatch("sendVerifyEmailJob", {
       userId: newUser.id,
       type: "verify",
     });
 
-    // 4️⃣ Trả về thông báo
+    // 5️⃣ Trả về thông báo
     return {
       message:
         "Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.",
+      userId: newUser.id,
+      customerId: newCustomer.id,
+      cartId: newCart.id,
     };
   } catch (error) {
     console.error("Đăng ký lỗi:", error);
@@ -131,9 +149,30 @@ const getCurrentUser = async (req) => {
 
     if (!user) throw new Error("Người dùng không tồn tại");
 
+    let cartId = null;
+
+    // Nếu user có customer, tìm cartId tương ứng
+    if (user.customer?.id) {
+      try {
+        const cart = await Cart.findOne({
+          where: {
+            customer_id: user.customer.id,
+            // Có thể thêm các điều kiện khác nếu cần, ví dụ:
+            // status: 'active'
+          },
+          attributes: ["id"],
+          order: [["created_at", "DESC"]],
+        });
+
+        cartId = cart?.id || null;
+      } catch (cartError) {
+        console.error("Lỗi khi tìm giỏ hàng:", cartError);
+      }
+    }
     return {
       ...user.toJSON(),
       customerId: user.customer?.id || null,
+      cartId,
     };
   } catch (err) {
     throw err;

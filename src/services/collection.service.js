@@ -49,6 +49,7 @@ const getProductsByCollectionSlug = async (slug, page = 1, limit = 8, sort) => {
             model: Collection,
             where: { id: collection.id },
             through: { attributes: [] },
+            as: "collections",
           },
           {
             model: ProductDiscount,

@@ -94,7 +94,6 @@ const refreshToken = async (req, res) => {
     // LẤY refresh_token TỪ COOKIE
     const refreshToken = req.cookies.refresh_token;
 
-    console.log("refreshToken", refreshToken);
     if (!refreshToken) {
       return error(res, 401, "Refresh token is missing");
     }

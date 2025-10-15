@@ -2,24 +2,65 @@ const { Cart, CartItem, Product, ProductVariant } = require("@/models");
 const throwError = require("@/utils/throwError");
 
 const cartService = {
-  async addItem(customerId, productId, variantId, quantity = 1) {
+  async recalculateCartTotals(cartId) {
+    const items = await CartItem.findAll({
+      where: { cart_id: cartId },
+      attributes: ["total_price", "discount_amount"],
+    });
+
+    const totalAmount = items.reduce(
+      (sum, item) => sum + parseFloat(item.total_price || 0),
+      0
+    );
+    const discountTotal = items.reduce(
+      (sum, item) => sum + parseFloat(item.discount_amount || 0),
+      0
+    );
+    const finalAmount = totalAmount - discountTotal;
+
+    await Cart.update(
+      { total_amount: totalAmount, final_amount: finalAmount },
+      { where: { id: cartId } }
+    );
+  },
+  async addItem({
+    customerId,
+    sessionId,
+    productId,
+    variantId,
+    quantity = 1,
+    userAgent,
+    ipAddress,
+  }) {
     try {
-      // 1. Tìm giỏ hàng
-      let cart = await Cart.findOne({
-        where: { customer_id: customerId, status: "active" },
-      });
+      // 1️⃣ Xác định điều kiện tìm giỏ hàng
+      let whereClause = {};
+      if (customerId) {
+        whereClause = { customer_id: customerId, status: "active" };
+      } else if (sessionId) {
+        whereClause = { session_id: sessionId, status: "active" };
+      } else {
+        throwError("Missing both customer_id and session_id", 400);
+      }
+
+      // 2️⃣ Tìm hoặc tạo giỏ hàng
+      let cart = await Cart.findOne({ where: whereClause });
 
       if (!cart) {
         cart = await Cart.create({
-          customer_id: customerId,
+          customer_id: customerId || null,
+          session_id: sessionId || null,
           total_amount: 0,
           discount_amount: 0,
           final_amount: 0,
           status: "active",
+          user_agent: userAgent,
+          ip_address: ipAddress,
+          created_at: new Date(),
         });
       }
 
-      // 2. Lấy giá sản phẩm
+      // 3️⃣ Lấy giá sản phẩm
       let unitPrice = 0;
       if (variantId) {
         const variant = await ProductVariant.findByPk(variantId);
@@ -31,7 +72,7 @@ const cartService = {
         unitPrice = product.price;
       }
 
-      // 3. Thêm hoặc cập nhật CartItem
+      // 4️⃣ Thêm hoặc cập nhật CartItem
       let cartItem = await CartItem.findOne({
         where: {
           cart_id: cart.id,
@@ -56,47 +97,35 @@ const cartService = {
         });
       }
 
-      // 4. Update tổng tiền
-      const items = await CartItem.findAll({ where: { cart_id: cart.id } });
-      const totalAmount = items.reduce(
-        (sum, i) => sum + Number(i.total_price),
-        0
-      );
-
-      cart.total_amount = totalAmount;
-      cart.final_amount = totalAmount - cart.discount_amount;
-      await cart.save();
+      await this.recalculateCartTotals(cart.id);
 
       return { cart, cartItem };
     } catch (error) {
-      console.log(error);
+      console.error("Error in addItem:", error);
+      throwError(500, "Failed to add item to cart");
     }
   },
 
-  async getCartItems(customerId) {
+  async getCartItems({ customerId, sessionId }) {
     try {
       // Validation
-      if (!customerId || isNaN(customerId)) {
-        return {
-          success: false,
-          error: "Invalid customer ID",
-        };
-      }
+      let cart;
 
-      // Lấy cart_id từ customer_id
-      const cart = await Cart.findOne({
-        where: { customer_id: parseInt(customerId) },
-        attributes: ["id"],
-      });
+      if (customerId) {
+        cart = await Cart.findOne({
+          where: { customer_id: customerId, status: "active" },
+        });
+      } else if (sessionId) {
+        cart = await Cart.findOne({
+          where: { session_id: sessionId, status: "active" },
+        });
+      } else {
+        throwError(400, "Missing customerId or sessionId");
+      }
 
       if (!cart) {
-        return {
-          success: true,
-          data: [],
-          message: "Cart not found for this customer",
-        };
+        return { success: true, data: [], message: "Cart not found" };
       }
-
       const cartItems = await CartItem.findAll({
         where: { cart_id: cart.id },
         include: [
@@ -104,11 +133,13 @@ const cartService = {
             model: Product,
             attributes: ["id", "name", "slug"],
             required: true,
+            as: "Product",
           },
           {
             model: ProductVariant,
             attributes: ["id", "name", "image_url"],
             required: true,
+            as: "ProductVariant",
           },
         ],
         attributes: [
@@ -173,42 +204,41 @@ const cartService = {
     }
   },
 
-  async updateCartItemQuantity(cartItemId, quantity, customerId) {
+  async updateCartItemQuantity(
+    cartItemId,
+    quantity,
+    { customerId, sessionId }
+  ) {
     try {
       // Validation
       if (!cartItemId || isNaN(cartItemId)) {
-        return {
-          success: false,
-          error: "Invalid cart item ID",
-        };
+        return { success: false, error: "Invalid cart item ID" };
       }
 
       if (!quantity || quantity < 1) {
-        return {
-          success: false,
-          error: "Quantity must be at least 1",
-        };
+        return { success: false, error: "Quantity must be at least 1" };
       }
 
-      if (!customerId || isNaN(customerId)) {
-        return {
-          success: false,
-          error: "Invalid customer ID",
-        };
-      }
-
+      // Tìm cart item dựa trên loại người dùng (customer hoặc guest)
+      const whereCart = {};
+      if (customerId) whereCart.customer_id = customerId;
+      else if (sessionId) whereCart.session_id = sessionId;
+      else return { success: false, error: "Missing user identifier" };
+      console.log("sessionId", sessionId);
       const cartItem = await CartItem.findOne({
         where: { id: parseInt(cartItemId) },
         include: [
           {
             model: Cart,
-            where: { customer_id: parseInt(customerId) },
+            where: whereCart,
             attributes: ["id"],
             required: true,
+            as: "Cart",
           },
           {
             model: ProductVariant,
             attributes: ["id", "price", "stock"],
+            as: "ProductVariant",
             required: true,
           },
         ],
@@ -217,7 +247,7 @@ const cartService = {
       if (!cartItem) {
         return {
           success: false,
-          error: "Cart item not found or does not belong to customer",
+          error: "Cart item not found or not authorized",
         };
       }
 
@@ -254,9 +284,13 @@ const cartService = {
             model: Cart,
             attributes: ["id"],
             required: true,
+            as: "Cart",
           },
         ],
       });
+
+      // Recalculate cart totals
+      await this.recalculateCartTotals(updatedCartItem.cart_id);
 
       return {
         success: true,
@@ -272,7 +306,7 @@ const cartService = {
     }
   },
 
-  async removeCartItem(cartItemId, customerId) {
+  async removeCartItem(cartItemId, { customerId, sessionId }) {
     try {
       // Validation
       if (!cartItemId || isNaN(cartItemId)) {
@@ -282,37 +316,42 @@ const cartService = {
         };
       }
 
-      if (!customerId || isNaN(customerId)) {
-        return {
-          success: false,
-          error: "Invalid customer ID",
-        };
-      }
+      // Tìm cart item dựa trên loại người dùng (customer hoặc guest)
+      const whereCart = {};
+      if (customerId) whereCart.customer_id = parseInt(customerId);
+      else if (sessionId) whereCart.session_id = sessionId;
+      else return { success: false, error: "Missing user identifier" };
 
-      // Tìm cart item và verify nó thuộc về customer
       const cartItem = await CartItem.findOne({
         where: { id: parseInt(cartItemId) },
         include: [
           {
             model: Cart,
-            where: { customer_id: parseInt(customerId) },
+            where: whereCart,
             attributes: ["id"],
             required: true,
+            as: "Cart",
           },
         ],
       });
+      console.log("cartItem", cartItem);
 
       if (!cartItem) {
         return {
           success: false,
-          error: "Cart item not found or does not belong to customer",
+          error: "Cart item not found or does not belong to user",
         };
       }
+
+      const cartId = cartItem.cart_id;
 
       // Xóa cart item
       await CartItem.destroy({
         where: { id: parseInt(cartItemId) },
       });
+
+      // Recalculate cart totals
+      await this.recalculateCartTotals(cartId);
 
       return {
         success: true,
@@ -326,6 +365,164 @@ const cartService = {
         debug:
           process.env.NODE_ENV === "development" ? error.message : undefined,
       };
+    }
+  },
+
+  async updateCartItemVariant(itemId, variantId, { customerId, sessionId }) {
+    try {
+      // Validation
+      if (!itemId || !variantId) {
+        throwError(400, "Missing required parameters: itemId, variantId");
+      }
+
+      // Tìm cart dựa trên loại người dùng (customer hoặc guest)
+      const whereCart = {};
+      if (customerId) whereCart.customer_id = parseInt(customerId);
+      else if (sessionId) whereCart.session_id = sessionId;
+      else throwError(400, "Missing user identifier");
+
+      const cart = await Cart.findOne({
+        where: whereCart,
+        attributes: ["id"],
+      });
+
+      if (!cart) {
+        throwError(404, "Cart not found");
+      }
+
+      // Tìm cart item và kiểm tra quyền sở hữu
+      const cartItem = await CartItem.findOne({
+        where: {
+          id: itemId,
+          cart_id: cart.id,
+        },
+        include: [
+          {
+            model: Product,
+            attributes: ["id", "name"],
+            as: "Product",
+          },
+        ],
+      });
+
+      if (!cartItem) {
+        throwError(404, "Cart item not found or does not belong to this user");
+      }
+
+      // Tìm variant mới và kiểm tra
+      const newVariant = await ProductVariant.findOne({
+        where: { id: variantId },
+        include: [
+          {
+            model: Product,
+            attributes: ["id", "name"],
+            as: "Product",
+          },
+        ],
+      });
+
+      if (!newVariant) {
+        throwError(404, "Variant not found");
+      }
+
+      // Kiểm tra xem variant có thuộc cùng product không
+      if (cartItem.Product.id !== newVariant.Product.id) {
+        throwError(400, "Cannot change to variant of different product");
+      }
+
+      // Kiểm tra tồn kho
+      if (
+        newVariant.stock_quantity !== null &&
+        cartItem.quantity > newVariant.stock_quantity
+      ) {
+        throwError(
+          400,
+          `Quantity in cart (${cartItem.quantity}) exceeds available stock (${newVariant.stock_quantity})`
+        );
+      }
+
+      // Tạo variantInfo từ variant name
+      const productName = cartItem.Product.name;
+      const variantFullName = newVariant.name;
+      let variantInfo = variantFullName;
+
+      // Xử lý để lấy phần variant name (loại bỏ product name)
+      if (variantFullName.includes(productName)) {
+        variantInfo = variantFullName.replace(productName, "").trim();
+        // Loại bỏ dấu "-" thừa ở đầu nếu có
+        if (variantInfo.startsWith("-")) {
+          variantInfo = variantInfo.substring(1).trim();
+        }
+      }
+
+      // Cập nhật cart item
+      const [updateCount] = await CartItem.update(
+        {
+          variant_id: variantId,
+          unit_price: newVariant.price,
+          total_price: newVariant.price * cartItem.quantity,
+          updated_at: new Date(),
+        },
+        {
+          where: { id: itemId },
+        }
+      );
+
+      if (updateCount === 0) {
+        throwError(500, "Failed to update cart item");
+      }
+
+      // Lấy thông tin item đã cập nhật
+      const finalItem = await CartItem.findOne({
+        where: { id: itemId },
+        include: [
+          {
+            model: Product,
+            attributes: ["id", "name", "slug"],
+            as: "Product",
+          },
+          {
+            model: ProductVariant,
+            attributes: ["id", "name", "image_url"],
+            as: "ProductVariant",
+          },
+        ],
+      });
+
+      if (!finalItem) {
+        throwError(500, "Failed to retrieve updated cart item");
+      }
+
+      // Recalculate cart totals
+      await this.recalculateCartTotals(cart.id);
+
+      // Format response data
+      const formattedItem = {
+        id: finalItem.id,
+        name: finalItem.Product.name,
+        slug: finalItem.Product.slug,
+        variant: variantInfo,
+        price: parseFloat(finalItem.unit_price) || 0,
+        quantity: finalItem.quantity || 0,
+        image: finalItem.ProductVariant.image_url || "",
+        variantId: finalItem.variant_id,
+      };
+
+      return {
+        success: true,
+        data: formattedItem,
+        message: "Variant updated successfully",
+      };
+    } catch (err) {
+      console.error("Error in updateCartItemVariant service:", err);
+
+      // Nếu đã là throwError thì re-throw
+      if (err.status) {
+        throw err;
+      }
+
+      // Nếu là lỗi thông thường thì wrap thành throwError
+      throwError(500, "Failed to update cart item variant", err.message);
     }
   },
 };

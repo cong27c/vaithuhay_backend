@@ -27,7 +27,7 @@ app.use(cookieParser());
 
 // (async () => {
 //   try {
-//     const data = await crawlProductVariants();
+//     const data = await crawlBlogProducts();
 //     console.log("Crawl thành công:", data);
 //   } catch (err) {
 //     console.error("Lỗi khi crawl:", err);
@@ -42,5 +42,6 @@ app.listen(port, () => {
 
 // crawl blogs, blog_products , collection_products,
 
-// field name của bảng attributes chưa ổn lắm
+// chưa lấy được ảnh của từng biến thể
+
 // thứ tự crawl : crawlCollections , crawlProducts , crawlProductDetail , productImagesTable, crawlProductVariants, crawlBlogProducts

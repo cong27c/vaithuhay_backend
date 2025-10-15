@@ -5,50 +5,30 @@ module.exports = (sequelize, DataTypes) => {
   class Cart extends Model {
     static associate(models) {
       Cart.belongsTo(models.Customer, { foreignKey: "customer_id" });
-      Cart.hasMany(models.CartItem, { foreignKey: "cart_id" });
+      Cart.hasMany(models.CartItem, { foreignKey: "cart_id", as: "items" });
     }
   }
 
   Cart.init(
     {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: DataTypes.INTEGER,
-      },
-      customer_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
-      total_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.0,
-      },
-      discount_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.0,
-      },
-      voucher_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      final_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.0,
-      },
-      status: {
-        type: DataTypes.ENUM("active", "abandoned", "checkedout"),
-        defaultValue: "active",
-      },
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      customer_id: DataTypes.INTEGER,
+      session_id: DataTypes.STRING,
+      total_amount: DataTypes.DECIMAL(10, 2),
+      discount_amount: DataTypes.DECIMAL(10, 2),
+      voucher_id: DataTypes.INTEGER,
+      final_amount: DataTypes.DECIMAL(10, 2),
+      status: DataTypes.ENUM("active", "abandoned", "checkedout"),
+      expires_at: DataTypes.DATE,
+      user_agent: DataTypes.TEXT,
+      created_at: DataTypes.DATE,
+      updated_at: DataTypes.DATE,
     },
     {
       sequelize,
       modelName: "Cart",
       tableName: "carts",
-      timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      timestamps: false,
     }
   );
 

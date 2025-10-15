@@ -1,15 +1,25 @@
 const express = require("express");
 const router = express.Router();
 const cartController = require("@/controllers/web/cart.controller");
-const authJWT = require("@/middlewares/authJWT");
+const optionalAuth = require("@/middlewares/optionalAuth");
 
-router.post("/add", authJWT, cartController.addToCart);
-router.get("/my-cart", authJWT, cartController.getCartItems);
+router.post("/add", optionalAuth, cartController.addToCart);
+router.get("/my-cart", optionalAuth, cartController.getCartItems);
 router.patch(
   "/items/:cartItemId/quantity",
-  authJWT,
+  optionalAuth,
   cartController.updateQuantity
 );
-router.delete("/items/:cartItemId", authJWT, cartController.removeCartItem);
+router.put(
+  "/items/:itemId/variant",
+  optionalAuth,
+  cartController.updateCartItemVariant
+);
+
+router.delete(
+  "/items/:cartItemId",
+  optionalAuth,
+  cartController.removeCartItem
+);
 
 module.exports = router;

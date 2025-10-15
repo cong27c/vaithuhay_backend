@@ -4,7 +4,16 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Voucher extends Model {
     static associate(models) {
-      // associations can be defined here
+      Voucher.hasMany(models.VoucherCondition, {
+        foreignKey: "voucher_id",
+        as: "conditions",
+      });
+
+      // One-to-Many: Một Voucher có nhiều VoucherUsage
+      Voucher.hasMany(models.VoucherUsage, {
+        foreignKey: "voucher_id",
+        as: "Usages",
+      });
     }
   }
 

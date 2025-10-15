@@ -19,24 +19,24 @@ module.exports = {
         allowNull: true,
         unique: true,
       },
-      // author: {
-      //   type: Sequelize.STRING,
-      //   allowNull: true,
-      //   defaultValue: null,
-      // },
-      // content_html: {
-      //   type: Sequelize.TEXT,
-      //   allowNull: true,
-      // },
-      // content_text: {
-      //   type: Sequelize.TEXT,
-      //   allowNull: true,
-      // },
-      // type: {
-      //   type: Sequelize.ENUM("setup-decor", "product", "cong-nghe"),
-      //   allowNull: false,
-      //   defaultValue: "product",
-      // },
+      author: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        defaultValue: null,
+      },
+      content_html: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      },
+      content_text: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+      },
+      type: {
+        type: Sequelize.ENUM("setup-decor", "product", "cong-nghe"),
+        allowNull: false,
+        defaultValue: "product",
+      },
       thumbnail: {
         type: Sequelize.STRING(500),
         allowNull: true,

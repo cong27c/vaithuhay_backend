@@ -4,57 +4,36 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class CartItem extends Model {
     static associate(models) {
-      CartItem.belongsTo(models.Cart, { foreignKey: "cart_id" });
-      CartItem.belongsTo(models.Product, { foreignKey: "product_id" });
-      CartItem.belongsTo(models.ProductVariant, { foreignKey: "variant_id" });
+      CartItem.belongsTo(models.Cart, { foreignKey: "cart_id", as: "Cart" });
+      CartItem.belongsTo(models.Product, {
+        foreignKey: "product_id",
+        as: "Product",
+      });
+      CartItem.belongsTo(models.ProductVariant, {
+        foreignKey: "variant_id",
+        as: "ProductVariant",
+      });
     }
   }
 
   CartItem.init(
     {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: DataTypes.INTEGER,
-      },
-      cart_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
-      product_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-      },
-      variant_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      quantity: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        defaultValue: 1,
-      },
-      unit_price: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.0,
-      },
-      discount_amount: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.0,
-      },
-      total_price: {
-        type: DataTypes.DECIMAL(10, 2),
-        defaultValue: 0.0,
-      },
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      cart_id: DataTypes.INTEGER,
+      product_id: DataTypes.INTEGER,
+      variant_id: DataTypes.INTEGER,
+      quantity: DataTypes.INTEGER,
+      unit_price: DataTypes.DECIMAL(10, 2),
+      discount_amount: DataTypes.DECIMAL(10, 2),
+      total_price: DataTypes.DECIMAL(10, 2),
+      created_at: DataTypes.DATE,
+      updated_at: DataTypes.DATE,
     },
     {
       sequelize,
       modelName: "CartItem",
       tableName: "cart_items",
-      timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      timestamps: false,
     }
   );
 

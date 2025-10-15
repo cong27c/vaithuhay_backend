@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         through: models.CollectionProduct,
         foreignKey: "product_id",
         otherKey: "collection_id",
+        as: "collections",
       });
 
       Product.hasOne(models.ProductDiscount, {
@@ -37,12 +38,16 @@ module.exports = (sequelize, DataTypes) => {
         as: "blogs",
       });
 
-      Product.hasMany(models.OrderDetail, { foreignKey: "product_id" });
+      Product.hasMany(models.OrderItem, { foreignKey: "product_id" });
       Product.belongsToMany(models.Order, {
-        through: models.OrderDetail,
+        through: models.OrderItem,
         foreignKey: "product_id",
         otherKey: "order_id",
         as: "orders",
+      });
+      Product.hasMany(models.CartItem, {
+        foreignKey: "product_id",
+        as: "CartItem",
       });
     }
   }

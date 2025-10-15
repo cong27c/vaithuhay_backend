@@ -8,79 +8,51 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "order_id",
         as: "reviews",
       });
-      Order.hasMany(models.OrderDetail, { foreignKey: "order_id" });
+      Order.hasMany(models.OrderItem, { foreignKey: "order_id" });
       Order.belongsToMany(models.Product, {
-        through: models.OrderDetail,
+        through: models.OrderItem,
         foreignKey: "order_id",
         otherKey: "product_id",
         as: "products",
+      });
+
+      Order.hasOne(models.Payment, {
+        foreignKey: "order_id",
+        as: "payment",
+      });
+
+      Order.hasOne(models.Shipment, {
+        foreignKey: "order_id",
+        as: "shipment",
+      });
+
+      Order.belongsTo(models.Address, {
+        foreignKey: "address_id",
+        as: "address",
       });
     }
   }
 
   Order.init(
     {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: DataTypes.INTEGER,
-      },
-      customer_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      order_number: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        unique: true,
-      },
-      order_date: {
-        type: DataTypes.DATE,
-        allowNull: true,
-      },
-      total_amount: {
-        type: DataTypes.DECIMAL(12, 2),
-        allowNull: true,
-        validate: {
-          min: 0,
-        },
-      },
-      discount_amount: {
-        type: DataTypes.DECIMAL(12, 2),
-        allowNull: false,
-        defaultValue: 0,
-        validate: {
-          min: 0,
-        },
-      },
-      voucher_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      final_amount: {
-        type: DataTypes.DECIMAL(12, 2),
-        allowNull: true,
-        validate: {
-          min: 0,
-        },
-      },
-      status: {
-        type: DataTypes.STRING(50),
-        allowNull: false,
-        defaultValue: "pending",
-        validate: {
-          isIn: [["pending", "paid", "shipped", "cancelled"]],
-        },
-      },
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      customer_id: DataTypes.INTEGER,
+      address_id: DataTypes.INTEGER,
+      order_number: DataTypes.STRING(100),
+      order_date: DataTypes.DATE,
+      total_amount: DataTypes.DECIMAL(12, 2),
+      discount_amount: DataTypes.DECIMAL(12, 2),
+      voucher_id: DataTypes.INTEGER,
+      final_amount: DataTypes.DECIMAL(12, 2),
+      status: DataTypes.STRING(50),
+      created_at: DataTypes.DATE,
+      updated_at: DataTypes.DATE,
     },
     {
       sequelize,
       modelName: "Order",
       tableName: "orders",
-      timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      timestamps: false,
     }
   );
 

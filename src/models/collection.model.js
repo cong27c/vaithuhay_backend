@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         through: models.CollectionProduct,
         foreignKey: "collection_id",
         otherKey: "product_id",
+        as: "products",
       });
     }
   }

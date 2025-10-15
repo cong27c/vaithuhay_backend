@@ -13,48 +13,24 @@ module.exports = (sequelize, DataTypes) => {
 
   Customer.init(
     {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: DataTypes.INTEGER,
-      },
-      user_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
-      first_name: {
-        type: DataTypes.STRING(50),
-        allowNull: true,
-      },
-      last_name: {
-        type: DataTypes.STRING(50),
-        allowNull: true,
-      },
-      email: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-        unique: true,
-        validate: {
-          isEmail: true,
-        },
-      },
-      phone: {
-        type: DataTypes.STRING(20),
-        allowNull: true,
-      },
-      address: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
+      id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+      user_id: DataTypes.INTEGER,
+      first_name: DataTypes.STRING(50),
+      last_name: DataTypes.STRING(50),
+      email: { type: DataTypes.STRING(100), allowNull: false },
+      phone: DataTypes.STRING(20),
+      address: DataTypes.TEXT,
+      is_guest: { type: DataTypes.BOOLEAN, defaultValue: false },
+      guest_token: DataTypes.STRING,
+      converted_at: DataTypes.DATE,
+      created_at: DataTypes.DATE,
+      updated_at: DataTypes.DATE,
     },
     {
       sequelize,
       modelName: "Customer",
       tableName: "customers",
-      timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      timestamps: false,
     }
   );
 

@@ -25,32 +25,47 @@ function getDisplayOrder(attributeName) {
 async function getImageUrl(page) {
   try {
     return await page.evaluate(() => {
+      // Tìm slide đang active trong slider
       const activeSlide = document.querySelector(
-        ".slick-slide.slick-current.slick-active"
+        ".slick-slide.slick-current.slick-active:not(.slick-cloned)"
       );
 
-      if (!activeSlide) return "";
+      if (!activeSlide) {
+        console.log("No active slide found");
+        return "";
+      }
 
+      // Tìm ảnh trong slide active
       const img = activeSlide.querySelector("img");
-      if (!img) return "";
+      if (img) {
+        let src =
+          img.getAttribute("src") ||
+          img.getAttribute("data-lazy") ||
+          img.getAttribute("data-src") ||
+          "";
 
-      let src = img.getAttribute("srcset") || img.getAttribute("src") || "";
+        // Xử lý srcset nếu có
+        if (!src && img.getAttribute("srcset")) {
+          src = img.getAttribute("srcset").split(",")[0].trim().split(" ")[0];
+        }
 
-      if (src.includes(",")) {
-        src = src.split(",")[0].trim().split(" ")[0];
+        // Thêm protocol nếu cần
+        if (src && src.startsWith("//")) {
+          src = "https:" + src;
+        }
+
+        console.log("Found image in active slide:", src);
+        return src;
       }
-      if (src && src.startsWith("//")) {
-        src = "https:" + src;
-      }
 
-      return src;
+      console.log("No image found in active slide");
+      return "";
     });
   } catch (error) {
     console.log("Không thể lấy ảnh:", error.message);
     return "";
   }
 }
-
 // Hàm hỗ trợ parse price
 function parsePrice(priceString) {
   if (!priceString) return 0;
@@ -168,7 +183,7 @@ async function crawlProductVariants() {
       console.log(`Truy cập URL: ${url}`);
 
       await page.goto(url, { waitUntil: "networkidle2" });
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await new Promise((resolve) => setTimeout(resolve, 4000));
 
       // 2. Tìm variant container và option container
       const variantContainer = await page.$(
@@ -346,7 +361,7 @@ async function crawlProductVariants() {
             continue;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 4000));
 
           // 7. Tạo combinations từ các attribute còn lại
           const otherAttributes = attributesData.slice(1);
@@ -381,7 +396,7 @@ async function crawlProductVariants() {
                 );
 
                 if (clickSuccess) {
-                  await new Promise((resolve) => setTimeout(resolve, 500));
+                  await new Promise((resolve) => setTimeout(resolve, 2000));
                   combinationName += ` - ${attrValue}`;
                   console.log(`✅ Đã click: ${attrName} = ${attrValue}`);
                 } else {
@@ -396,7 +411,7 @@ async function crawlProductVariants() {
               }
 
               // Chờ giao diện ổn định
-              await new Promise((resolve) => setTimeout(resolve, 1500));
+              await new Promise((resolve) => setTimeout(resolve, 5000));
 
               // 9. Lấy thông tin variant
               const variantInfo = await getVariantInfo(
@@ -454,8 +469,9 @@ async function crawlProductVariants() {
             product_id: product.id,
             name: variant.name,
             price: variant.price,
-            image: variant.image,
+            image_url: variant.image,
             sku: generateSKU(product.id, variant.name),
+            stock: Math.floor(Math.random() * (100 - 30 + 1)) + 30,
           });
 
           console.log(`Đã tạo ProductVariant: ${variant.name}`);

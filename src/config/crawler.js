@@ -4,6 +4,8 @@ module.exports = {
   productDetailUrl: "https://vaithuhay.com/products",
   collectionUrl: "https://vaithuhay.com/collections",
   blogsUrl: "https://vaithuhay.com/blogs",
+  checkoutsUrl:
+    "https://vaithuhay.com/checkouts/b44f571d4f704838a2d22bde8a4ec795",
   productElement: {
     product: ".collection-pro",
     name: ".caption a h4",
@@ -54,6 +56,13 @@ module.exports = {
     blogItem: ".ega-content-toggle:not(.product-tech-box)",
     title: ".ega-toggle-head ",
     contentHtml: ".ega-toggle-body .toggle-body-content",
+  },
+  vouchersElement: {
+    btnOpenModule: ".hrv-discount-choose-coupons",
+    listVouchers: ".hrv-discount-code-web",
+    voucherItem: ".coupon_item",
+    code: ".coupon_title span",
+    description: ".coupon_desc",
   },
   blogSystemElement: {
     blogList: ".post-list .row",

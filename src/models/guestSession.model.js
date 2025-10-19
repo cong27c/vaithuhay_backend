@@ -20,6 +20,7 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
       },
       session_id: { type: DataTypes.STRING, allowNull: false },
+      customer_id: { type: DataTypes.INTEGER, allowNull: true },
       ip_address: DataTypes.STRING,
       customer_id: DataTypes.INTEGER,
       expires_at: DataTypes.DATE,

@@ -4,6 +4,6 @@ const voucherController = require("@/controllers/web/voucher.controller");
 const authJWT = require("@/middlewares/authJWT");
 
 router.get("/", voucherController.getVouchers);
-router.post("/apply", authJWT, voucherController.applyVoucher);
+router.post("/apply", voucherController.applyVoucher);
 
 module.exports = router;

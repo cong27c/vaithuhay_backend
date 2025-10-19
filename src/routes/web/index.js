@@ -9,6 +9,10 @@ const cartRoute = require("./cart.route");
 const voucherRoute = require("./voucher.route");
 const checkoutRoute = require("./checkout.route");
 const guestSessionRoutes = require("./guestSession.route");
+const addressRoute = require("./address.route");
+const searchRoute = require("./search.route");
+const blogRoute = require("./blog.route");
+const preOrderRoute = require("./preOrder.route");
 
 router.use("/auth", authRoute);
 router.use("/collections", collectionRoute);
@@ -18,5 +22,9 @@ router.use("/carts", cartRoute);
 router.use("/vouchers", voucherRoute);
 router.use("/checkout", checkoutRoute);
 router.use("/guest-session", guestSessionRoutes);
+router.use("/addresses", addressRoute);
+router.use("/search", searchRoute);
+router.use("/blogs", blogRoute);
+router.use("/preorder", preOrderRoute);
 
 module.exports = router;

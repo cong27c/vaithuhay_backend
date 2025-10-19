@@ -83,7 +83,7 @@ async function crawlProducts() {
             description: p.description || "",
             price: rawPrice ? parseFloat(rawPrice) : null,
             stock: Math.floor(Math.random() * 200) + 1,
-            status: "active",
+            status: "available",
             brand_id: null,
           };
         });

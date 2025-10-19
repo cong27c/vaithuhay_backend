@@ -1,7 +1,9 @@
+const sendPreorderEmailJob = require("@/jobs/sendPreorderEmailJob");
 const sendVerifyEmailJob = require("../jobs/sendVerifyEmailJob");
 const { Queue } = require("../models");
 const handlers = {
   sendVerifyEmailJob,
+  sendPreorderEmailJob,
 };
 async function jobProcess(job) {
   const handler = handlers[job.type];

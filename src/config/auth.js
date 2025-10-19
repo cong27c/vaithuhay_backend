@@ -2,6 +2,10 @@ const rawRefreshExpires = parseInt(process.env.REFRESH_TOKEN_EXPIRES_IN, 10);
 const REFRESH_TOKEN_EXPIRES_IN = isNaN(rawRefreshExpires)
   ? 30 * 24 * 60 * 60
   : rawRefreshExpires;
+const rawSessionExpires = parseInt(process.env.SESSION_ID_EXPIRES_IN, 10);
+const SESSION_ID_EXPIRES_IN = isNaN(rawSessionExpires)
+  ? 30 * 24 * 60 * 60 // 30 ngày mặc định
+  : rawSessionExpires;
 
 module.exports = {
   JWT_SECRET:
@@ -14,4 +18,5 @@ module.exports = {
     process.env.MAIL_SECRET ||
     "835fb85dbd6a6e937123213cc88dc31c3b80757301a109d9d3b79427b783",
   MAIL_EXPIRES_IN: parseInt(process.env.MAIL_EXPIRES_IN, 10) || 2000,
+  SESSION_ID_EXPIRES_IN,
 };

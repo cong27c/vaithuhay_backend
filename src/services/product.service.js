@@ -7,8 +7,12 @@ const {
   Blog,
   AttributeValue,
   Attribute,
+  PreorderCampaign,
+  PreorderTier,
+  PreorderRegistration,
 } = require("@/models");
 const formatCurrency = require("@/utils/formatCurrency");
+const formatDate = require("@/utils/formatDate");
 const parseHtmlToBlocks = require("@/utils/parseHtmlToBlocks");
 const { Op } = require("sequelize");
 
@@ -77,18 +81,45 @@ const productService = {
     }
   },
 
+  async checkExistingRegistration(
+    customerId,
+    guestSessionId,
+    productId,
+    campaignId
+  ) {
+    const whereCondition = {
+      product_id: productId,
+      campaign_id: campaignId,
+      status: ["pending", "confirmed"], // Chỉ kiểm tra các trạng thái hợp lệ
+    };
+
+    // Kiểm tra theo customer_id (đã đăng nhập) hoặc guest_session_id (khách vãng lai)
+    if (customerId) {
+      whereCondition.customer_id = customerId;
+    } else if (guestSessionId) {
+      whereCondition.guest_session_id = guestSessionId;
+    }
+
+    const existingRegistration = await PreorderRegistration.findOne({
+      where: whereCondition,
+    });
+
+    return !!existingRegistration;
+  },
+
   // ---------------- MAIN PRODUCT SERVICE ----------------
-  async getProductBySlug(slug) {
-    // 1. Lấy product
+  async getProductBySlug(slug, customerId = null, guestSessionId = null) {
     try {
+      // 1. Lấy product với trường status
       const product = await Product.findOne({
         where: { slug },
-        attributes: ["id", "name", "price"],
+        attributes: ["id", "name", "price", "status"],
       });
 
       if (!product) return null;
 
       const productId = product.id;
+      const productStatus = product.status;
 
       // 2. Lấy discount
       const discounts = await ProductDiscount.findAll({
@@ -115,8 +146,11 @@ const productService = {
         .filter((img) => img.is_main != true)
         .map((img) => img.image_url);
 
-      return {
+      // Base result object
+      const result = {
         id: productId,
+        isPreOrder:
+          productStatus === "pre_order" || productStatus === "coming_soon",
         detail: {
           name: product.name,
           price: formatCurrency(product.price),
@@ -133,10 +167,112 @@ const productService = {
           subImages,
         },
       };
+
+      console.log("isPreOrder:", result.isPreOrder);
+
+      // Xử lý trường hợp preorder/coming_soon
+      if (result.isPreOrder) {
+        console.log("=== DEBUG PREORDER CAMPAIGN ===");
+
+        // Debug: Kiểm tra tất cả campaigns
+        const allCampaigns = await PreorderCampaign.findAll({
+          where: { product_id: productId },
+          raw: true,
+        });
+        console.log("All campaigns (raw):", allCampaigns);
+
+        // Query chính thức
+        const preorderCampaign = await PreorderCampaign.findOne({
+          where: {
+            product_id: productId,
+            status: "upcoming",
+          },
+          attributes: ["id", "start_date", "end_date", "status"],
+          include: [
+            {
+              model: PreorderTier,
+              as: "tiers",
+              attributes: [
+                "id",
+                "name",
+                "type",
+                "price",
+                "limit_quantity",
+                "sold_quantity",
+                "discount_percent",
+                "order_index",
+              ],
+              order: [["order_index", "ASC"]],
+            },
+          ],
+        });
+
+        console.log("Final campaign result:", preorderCampaign);
+        console.log("=== END DEBUG ===");
+
+        if (preorderCampaign) {
+          // KIỂM TRA ĐĂNG KÝ CỦA NGƯỜI DÙNG
+          let userRegistration = null;
+          let isRegistered = false;
+
+          if (customerId || guestSessionId) {
+            isRegistered = await this.checkExistingRegistration(
+              customerId,
+              guestSessionId,
+              productId,
+              preorderCampaign.id
+            );
+
+            // Nếu đã đăng ký, lấy thông tin đăng ký
+            if (isRegistered) {
+              userRegistration = await PreorderRegistration.findOne({
+                where: {
+                  product_id: productId,
+                  campaign_id: preorderCampaign.id,
+                  ...(customerId
+                    ? { customer_id: customerId }
+                    : { guest_session_id: guestSessionId }),
+                  status: ["pending", "confirmed"],
+                },
+                attributes: ["id", "status", "tier_id", "created_at"],
+              });
+            }
+          }
+
+          result.preorder = {
+            startDate: formatDate(preorderCampaign.start_date),
+            endDate: formatDate(preorderCampaign.end_date),
+            status: preorderCampaign.status,
+            campaignId: preorderCampaign.id,
+            // THÊM THÔNG TIN ĐĂNG KÝ CỦA NGƯỜI DÙNG
+            isRegistered,
+            tiers: preorderCampaign.tiers.map((tier) => ({
+              id: tier.id,
+              name: tier.name,
+              type: tier.type,
+              price: formatCurrency(tier.price),
+              limitQuantity: tier.limit_quantity,
+              soldQuantity: tier.sold_quantity,
+              discountPercent: tier.discount_percent,
+              orderIndex: tier.order_index,
+              // Tính toán số lượng còn lại
+              remainingQuantity: tier.limit_quantity
+                ? tier.limit_quantity - tier.sold_quantity
+                : null,
+            })),
+          };
+        } else {
+          console.log("No preorder campaign found despite debug showing one!");
+        }
+      }
+
+      return result;
     } catch (error) {
-      console.log(error);
+      console.log("Error in getProductBySlug:", error);
+      throw error;
     }
   },
+
   async getProductVariantsBySlug(slug) {
     try {
       const product = await Product.findOne({

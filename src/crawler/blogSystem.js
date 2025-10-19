@@ -167,6 +167,7 @@ async function crawlBlogSystems() {
               thumbnail: blogItem.thumbnail,
               type,
               author: blogItem.author,
+              status: "published",
             });
           } catch (error) {
             console.error(`💥 Lỗi khi crawl chi tiết blog:`, error.message);

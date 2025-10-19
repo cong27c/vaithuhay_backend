@@ -25,6 +25,11 @@ async function loadEmailTemplate(type, template, data) {
       buttonText: "Verify Email-Setting",
       url: `${FRONTEND_URL}/settings/email/verify?token=${token}`,
     },
+    preorder: {
+      title: "Preorder Confirmation",
+      message: "Click below to confirm your preorder.",
+      buttonText: "Confirm Preorder",
+    },
   };
 
   if (!variables[type]) {

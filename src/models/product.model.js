@@ -10,17 +10,22 @@ module.exports = (sequelize, DataTypes) => {
         otherKey: "collection_id",
         as: "collections",
       });
+      Product.hasMany(models.ProductImage, {
+        foreignKey: "product_id",
+        as: "images",
+      });
+
+      Product.hasOne(models.ProductImage, {
+        foreignKey: "product_id",
+        as: "mainImage",
+        where: { is_main: true },
+      });
 
       Product.hasOne(models.ProductDiscount, {
         foreignKey: "product_id",
         as: "discount",
       });
       Product.hasOne(models.ProductDetail, { foreignKey: "product_id" });
-
-      Product.hasMany(models.ProductImage, {
-        foreignKey: "product_id",
-        as: "images",
-      });
 
       Product.hasMany(models.Review, {
         foreignKey: "product_id",
@@ -87,12 +92,10 @@ module.exports = (sequelize, DataTypes) => {
           min: 0,
         },
       },
+      release_date: DataTypes.DATE, // Thêm mới
       status: {
-        type: DataTypes.STRING(50),
-        allowNull: true,
-        validate: {
-          isIn: [["active", "inactive"]],
-        },
+        type: DataTypes.ENUM("coming_soon", "pre_order", "available"),
+        defaultValue: "coming_soon",
       },
       brand_id: {
         type: DataTypes.INTEGER,

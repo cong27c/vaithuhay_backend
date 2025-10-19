@@ -4,8 +4,13 @@ const throwError = require("@/utils/throwError");
 
 async function getProduct(req, res) {
   const { slug } = req.params;
+
   try {
-    const productData = await productService.getProductBySlug(slug);
+    const productData = await productService.getProductBySlug(
+      slug,
+      req.user?.id || null,
+      req.guestSession?.id || null
+    );
 
     if (!productData) {
       return throwError(res, 400, "Ko tìm thấy sản phẩm");

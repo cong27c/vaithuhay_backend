@@ -54,7 +54,7 @@ module.exports = (sequelize, DataTypes) => {
       type: {
         type: DataTypes.ENUM("setup-decor", "product", "cong-nghe"),
         allowNull: false,
-        defaultValue: "system",
+        defaultValue: "product",
       },
       status: {
         type: DataTypes.STRING(50),

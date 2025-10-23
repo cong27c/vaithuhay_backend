@@ -44,6 +44,8 @@ module.exports = (sequelize, DataTypes) => {
       discount_amount: DataTypes.DECIMAL(12, 2),
       voucher_id: DataTypes.INTEGER,
       final_amount: DataTypes.DECIMAL(12, 2),
+      qr_code_url: DataTypes.STRING,
+      virtual_account: DataTypes.STRING,
       status: DataTypes.STRING(50),
       created_at: DataTypes.DATE,
       updated_at: DataTypes.DATE,

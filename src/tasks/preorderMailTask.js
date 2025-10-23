@@ -1,8 +1,10 @@
 const { PreorderCampaign, PreorderRegistration } = require("@/models");
 const { Op } = require("sequelize");
 const jwt = require("jsonwebtoken");
-const dispatch = require("@/utils/queue");
-const MAIL_SECRET = process.env.MAIL_SECRET;
+const { dispatch } = require("@/utils/queue");
+const { generatePreorderToken } = require("@/services/jwt.service");
+
+// tạo hàm tạo token dành cho guest_session_id ở jwtService
 
 const preorderMailTask = async () => {
   const now = new Date();
@@ -22,21 +24,22 @@ const preorderMailTask = async () => {
 
     for (const preorder of preorders) {
       if (preorder.customer_id) {
+        const token = generatePreorderToken({
+          customer_id: preorder.customer_id,
+          registration_id: preorder.id,
+        });
         await dispatch("sendPreorderEmailJob", {
           email: preorder.email,
           type: "preorder-customer",
           preorderId: preorder.id,
           campaign_id: campaign.id,
+          token,
         });
       } else {
-        const token = jwt.sign(
-          {
-            guest_session_id: preorder.guest_session_id,
-            preorder_id: preorder.id,
-          },
-          MAIL_SECRET,
-          { expiresIn: "7d" }
-        );
+        const token = generatePreorderToken({
+          guest_session_id: preorder.guest_session_id,
+          registration_id: preorder.id,
+        });
         await dispatch("sendPreorderEmailJob", {
           email: preorder.email,
           type: "preorder-guest",

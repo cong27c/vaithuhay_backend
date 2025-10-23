@@ -13,7 +13,7 @@ const addToCart = async (req, res) => {
 
     let sessionId;
     if (!customerId) {
-      sessionId = req.body.session_id;
+      sessionId = req.guestSession?.id;
       if (!sessionId) {
         throwError(401, "Session ID required for guest users");
       }
@@ -41,7 +41,7 @@ const getCartItems = async (req, res) => {
 
     let sessionId;
     if (!customerId) {
-      sessionId = req.query.session_id;
+      sessionId = req.guestSession?.id;
       if (!sessionId) {
         throwError(401, "Session ID required for guest users");
       }
@@ -62,7 +62,7 @@ const updateQuantity = async (req, res) => {
 
     let sessionId;
     if (!customerId) {
-      sessionId = req.body.session_id;
+      sessionId = req.guestSession?.id;
       if (!sessionId) {
         throwError(401, "Session ID required for guest users");
       }
@@ -97,7 +97,7 @@ const removeCartItem = async (req, res) => {
     // Cho phép cả customer và guest
     let sessionId;
     if (!customerId) {
-      sessionId = req.body.session_id;
+      sessionId = req.guestSession?.id;
       if (!sessionId) {
         throwError(401, "Session ID required for guest users");
       }
@@ -136,7 +136,7 @@ const updateCartItemVariant = async (req, res) => {
 
     let sessionId;
     if (!customerId) {
-      sessionId = req.body.session_id;
+      sessionId = req.guestSession?.id;
       if (!sessionId) {
         return error(res, 401, "Session ID required for guest users");
       }

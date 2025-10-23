@@ -7,15 +7,12 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 async function sendPreorderEmailJob(job) {
   try {
     const { email, type, token, product_id } = JSON.parse(job.payload);
+    let url = `${FRONTEND_URL}/preorder/verify?token=${token}`;
+    console.log("token", token);
 
-    let url = `${FRONTEND_URL}/preorder/confirm`;
-
-    if (type === "preorder-guest") {
-      url += `?token=${token}`;
-    }
-
+    console.log("url", url);
     const template = await loadEmailTemplate(
-      "verify",
+      "preorder",
       "preorder/confirmation",
       {
         title: "Xác nhận đăng ký Preorder",
@@ -24,9 +21,8 @@ async function sendPreorderEmailJob(job) {
         url,
       }
     );
-
     await transporter.sendMail({
-      from: "no-reply@vaithuhay.vn",
+      from: process.env.EMAIL_USER,
       to: email,
       subject: "Xác nhận đăng ký Preorder",
       html: template,

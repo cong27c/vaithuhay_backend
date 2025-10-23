@@ -1,7 +1,9 @@
 require("module-alias/register");
+require("dotenv").config();
 
 const express = require("express");
 const webRouter = require("@/routes/web/index");
+const apiRouter = require("@/routes/api/index");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const productImagesTable = require("@/crawler/productImagesTable");
@@ -43,6 +45,7 @@ app.use(optionalAuth);
 app.use(guestSessionMiddleware);
 
 app.use("/", webRouter);
+app.use("/api/v1", apiRouter);
 //startPreorderCron();
 
 app.listen(port, () => {

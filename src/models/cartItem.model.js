@@ -22,6 +22,8 @@ module.exports = (sequelize, DataTypes) => {
       cart_id: DataTypes.INTEGER,
       product_id: DataTypes.INTEGER,
       variant_id: DataTypes.INTEGER,
+      preorder_slot_id: { type: DataTypes.INTEGER, allowNull: true },
+      tier_id: { type: DataTypes.INTEGER, allowNull: true },
       quantity: DataTypes.INTEGER,
       unit_price: DataTypes.DECIMAL(10, 2),
       discount_amount: DataTypes.DECIMAL(10, 2),

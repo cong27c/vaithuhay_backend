@@ -15,7 +15,8 @@ const login = async (req, res) => {
   try {
     const tokenData = await authService.login(
       req.body.email,
-      req.body.password
+      req.body.password,
+      req
     );
 
     res.cookie("refresh_token", tokenData.refresh_token, {
@@ -72,10 +73,13 @@ const getCurrentUser = async (req, res) => {
 
 const logout = async (req, res) => {
   const refreshToken = req.cookies.refresh_token;
-
   if (!refreshToken) return error(res, 400, "Refresh token required");
   try {
-    const result = await authService.logout(refreshToken);
+    const result = await authService.logout(
+      refreshToken,
+      customerId,
+      sessionId
+    );
     if (!result) return error(res, 400, "Invalid refresh token");
     res.clearCookie("refresh_token", {
       httpOnly: true,

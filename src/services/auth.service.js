@@ -5,6 +5,7 @@ const refreshTokenService = require("./refreshToken.service");
 const { MAIL_SECRET } = require("@/config/auth");
 const queue = require("@/utils/queue");
 const throwError = require("@/utils/throwError");
+const mergeGuestDataToCustomerService = require("./mergeGuestDataToCustomer.service");
 
 const register = async (data, res) => {
   try {
@@ -63,28 +64,56 @@ const register = async (data, res) => {
   }
 };
 
-const login = async (email, password) => {
+const login = async (email, password, req) => {
   try {
-    const user = await User.findOne({ where: { email } });
+    // 1️⃣ Tìm user theo email
+    const user = await User.findOne({
+      where: { email },
+      include: [{ model: Customer, as: "customer", attributes: ["id"] }],
+    });
 
     if (!user) throw new Error("Thông tin đăng nhập không hợp lệ.");
-    if (!user.verified_at) throwError("Email chưa xác thực");
+    if (!user.verified_at) throw new Error("Email chưa xác thực.");
 
-    const isValid = await compare(password, user.dataValues.password);
+    // 2️⃣ Kiểm tra password
+    const isValid = await compare(password, user.password);
     if (!isValid) throw new Error("Thông tin đăng nhập không hợp lệ.");
 
-    // Nếu user chưa bật 2FA → cấp token như bình thường
-    const tokenData = jwtService.generateAccessToken(user.dataValues.id);
-    const refreshToken = await refreshTokenService.createRefreshToken(
-      user.dataValues.id
-    );
+    // 3️⃣ Cấp access token và refresh token
+    const tokenData = jwtService.generateAccessToken(user.id);
+    const refreshToken = await refreshTokenService.createRefreshToken(user.id);
 
+    // 4️⃣ Nếu có guestSession → merge data
+    if (req.guestSession) {
+      let customerId = user.customer?.id;
+
+      // Nếu user chưa có customer → tạo mới
+      if (!customerId) {
+        const newCustomer = await Customer.create({ user_id: user.id });
+        customerId = newCustomer.id;
+      }
+
+      // Nếu guestSession chưa gắn customer → cập nhật
+      if (!req.guestSession.customer_id) {
+        req.guestSession.customer_id = customerId;
+        await req.guestSession.save();
+      }
+
+      // 5️⃣ Gộp dữ liệu guest → customer
+      await mergeGuestDataToCustomerService.mergeGuestDataToCustomer(
+        req.guestSession.id,
+        customerId
+      );
+    }
+
+    // ✅ Trả về token
     return {
       ...tokenData,
       refresh_token: refreshToken.token,
     };
   } catch (error) {
-    console.log(error);
+    console.error("Login error:", error);
+    throw error;
   }
 };
 
@@ -180,7 +209,11 @@ const getCurrentUser = async (req) => {
 };
 
 const logout = async (refreshToken) => {
+  // 🌀 Bước 1: merge dữ liệu customer → guest
   const deleted = await refreshTokenService.deleteRefreshToken(refreshToken);
+
+  // 2️⃣ Sau đó mới merge dữ liệu xuống guest (nếu có)
+
   return deleted > 0;
 };
 

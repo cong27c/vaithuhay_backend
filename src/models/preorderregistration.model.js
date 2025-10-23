@@ -18,6 +18,15 @@ module.exports = (sequelize, DataTypes) => {
         onDelete: "SET NULL",
       });
 
+      PreorderRegistration.belongsTo(models.PreorderTier, {
+        foreignKey: "tier_id",
+        as: "tier",
+      });
+      PreorderRegistration.belongsTo(models.PreorderCampaign, {
+        foreignKey: "campaign_id",
+        as: "campaign",
+      });
+
       // 🔹 Liên kết với sản phẩm
       PreorderRegistration.belongsTo(models.Product, {
         foreignKey: "product_id",
@@ -55,6 +64,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       tier_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      variant_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },

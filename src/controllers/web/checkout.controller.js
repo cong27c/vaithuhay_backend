@@ -1,39 +1,33 @@
-// controllers/checkoutController.js
-const checkoutService = require("@/services/checkout.service"); // Sửa import
-const throwError = require("@/utils/throwError");
+const {
+  checkoutCustomerService,
+  checkoutGuestService,
+} = require("@/services/checkout.service");
 
-exports.checkout = async (req, res) => {
+exports.handleCheckout = async (req, res) => {
   try {
-    const customerId = req.user?.customerId || null;
-    const { session_id, ...formData } = req.body; // Sửa syntax
+    const { isGuest, cartItems, formData, paymentMethod } = req.body;
+    let result;
 
-    let sessionId;
-    if (!customerId) {
-      sessionId = session_id;
-      if (!sessionId) {
-        throwError(401, "Session ID required for guest users");
-      }
+    if (isGuest) {
+      result = await checkoutGuestService(
+        req.guestSession?.id,
+        cartItems,
+        formData,
+        paymentMethod
+      );
+    } else {
+      result = await checkoutCustomerService(
+        req.user.id,
+        cartItems,
+        formData,
+        paymentMethod
+      );
     }
 
-    const result = await checkoutService.handleCheckout({
-      user: req.user, // Truyền cả user object
-      customerId, // Truyền customerId riêng
-      sessionId,
-      formData,
-      ipAddress: req.ip,
-      userAgent: req.headers["user-agent"],
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Checkout completed successfully",
-      data: result,
-    });
-  } catch (error) {
-    console.error("Checkout error:", error);
-    res.status(error.status || 500).json({
-      success: false,
-      message: error.message,
-    });
+    if (!result.success) return res.status(400).json(result);
+    return res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };

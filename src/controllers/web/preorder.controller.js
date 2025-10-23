@@ -2,6 +2,7 @@
 
 const PreorderService = require("@/services/preOrder.service");
 const { success, error } = require("@/utils/response");
+const throwError = require("@/utils/throwError");
 
 const register = async (req, res) => {
   try {
@@ -24,6 +25,18 @@ const register = async (req, res) => {
   }
 };
 
+const verifyPreorder = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) throw throwError(400, "Thiếu token.");
+
+    const result = await PreorderService.verifyPreorder(token);
+    return success(res, 200, result);
+  } catch (err) {
+    return error(res, err.status || 400, err.message, err.errors);
+  }
+};
+
 const getUpcomingCampaigns = async (req, res) => {
   try {
     const result = await PreorderService.getUpcomingCampaigns();
@@ -33,6 +46,45 @@ const getUpcomingCampaigns = async (req, res) => {
     return error(res, err.status || 500, err.message, err.errors);
   }
 };
+
+const getPreOrderCampaigns = async (req, res) => {
+  try {
+    const result = await PreorderService.getPreOrderCampaigns();
+    return success(res, 200, result);
+  } catch (err) {
+    console.error("Error in getUpcomingCampaigns controller:", err);
+    return error(res, err.status || 500, err.message, err.errors);
+  }
+};
+
+const addPreorderOpenItem = async (req, res) => {
+  try {
+    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const userAgent = req.headers["user-agent"];
+
+    // Lấy user / guest session nếu có
+    const customerId = req.user?.id || null;
+    const sessionId = req.guestSession?.id || null;
+
+    const result = await PreorderService.addPreorderOpenItem({
+      productId: req.body.productId,
+      tierId: req.body.tierId,
+      variantId: req.body.variantId || null,
+      customerId,
+      sessionId,
+      userAgent,
+      ipAddress: ip,
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("addPreorderOpenItem error:", err);
+    res.status(err.status || 500).json({
+      message: err.message || "Failed to add preorder product to cart",
+    });
+  }
+};
+
 const createCampaign = async (req, res) => {
   try {
     const { productId, startDate, endDate, tiers, note } = req.body;
@@ -123,4 +175,7 @@ module.exports = {
   getCampaignDetail,
   placeOrder,
   register,
+  verifyPreorder,
+  getPreOrderCampaigns,
+  addPreorderOpenItem,
 };

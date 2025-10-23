@@ -6,6 +6,8 @@ async function loadEmailTemplate(type, template, data) {
   const emailPath = path.join(__dirname, "..", "emails", `${template}.ejs`);
 
   const token = data.access_token;
+  const url = data?.url || null;
+  console.log(url);
   const variables = {
     verify: {
       title: "Verify Your Email",
@@ -29,6 +31,7 @@ async function loadEmailTemplate(type, template, data) {
       title: "Preorder Confirmation",
       message: "Click below to confirm your preorder.",
       buttonText: "Confirm Preorder",
+      url: `${url}`,
     },
   };
 

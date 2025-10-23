@@ -10,6 +10,7 @@ const {
   PreorderCampaign,
   PreorderTier,
   PreorderRegistration,
+  PreorderSlot,
 } = require("@/models");
 const formatCurrency = require("@/utils/formatCurrency");
 const formatDate = require("@/utils/formatDate");
@@ -168,24 +169,19 @@ const productService = {
         },
       };
 
-      console.log("isPreOrder:", result.isPreOrder);
-
       // Xử lý trường hợp preorder/coming_soon
       if (result.isPreOrder) {
-        console.log("=== DEBUG PREORDER CAMPAIGN ===");
-
         // Debug: Kiểm tra tất cả campaigns
         const allCampaigns = await PreorderCampaign.findAll({
           where: { product_id: productId },
           raw: true,
         });
-        console.log("All campaigns (raw):", allCampaigns);
 
-        // Query chính thức
+        // Query chính thức - LẤY CẢ upcoming VÀ open campaigns
         const preorderCampaign = await PreorderCampaign.findOne({
           where: {
             product_id: productId,
-            status: "upcoming",
+            status: ["upcoming", "open"], // Lấy cả 2 status
           },
           attributes: ["id", "start_date", "end_date", "status"],
           include: [
@@ -201,14 +197,13 @@ const productService = {
                 "sold_quantity",
                 "discount_percent",
                 "order_index",
+                "available_quantity",
+                "reserved_quantity",
               ],
               order: [["order_index", "ASC"]],
             },
           ],
         });
-
-        console.log("Final campaign result:", preorderCampaign);
-        console.log("=== END DEBUG ===");
 
         if (preorderCampaign) {
           // KIỂM TRA ĐĂNG KÝ CỦA NGƯỜI DÙNG
@@ -239,27 +234,48 @@ const productService = {
             }
           }
 
+          // XÁC ĐỊNH TYPE VÀ DATA THEO STATUS
+          const campaignType =
+            preorderCampaign.status === "upcoming" ? "upcoming" : "open";
+
           result.preorder = {
             startDate: formatDate(preorderCampaign.start_date),
             endDate: formatDate(preorderCampaign.end_date),
             status: preorderCampaign.status,
             campaignId: preorderCampaign.id,
-            // THÊM THÔNG TIN ĐĂNG KÝ CỦA NGƯỜI DÙNG
+            type: campaignType, // THÊM TRƯỜNG TYPE
             isRegistered,
-            tiers: preorderCampaign.tiers.map((tier) => ({
-              id: tier.id,
-              name: tier.name,
-              type: tier.type,
-              price: formatCurrency(tier.price),
-              limitQuantity: tier.limit_quantity,
-              soldQuantity: tier.sold_quantity,
-              discountPercent: tier.discount_percent,
-              orderIndex: tier.order_index,
-              // Tính toán số lượng còn lại
-              remainingQuantity: tier.limit_quantity
-                ? tier.limit_quantity - tier.sold_quantity
-                : null,
-            })),
+
+            tiers: await Promise.all(
+              preorderCampaign.tiers.map(async (tier) => {
+                // Đếm số slot đã reserved/confirmed cho tier này
+                const reservedCount = await PreorderSlot.count({
+                  where: {
+                    tier_id: tier.id,
+                    status: ["reserved", "confirmed"],
+                  },
+                });
+
+                let tierData = {
+                  id: tier.id,
+                  name: tier.name,
+                  type: tier.type,
+                  price: formatCurrency(tier.price),
+                  discountPercent: tier.discount_percent,
+                  orderIndex: tier.order_index,
+                  limitQuantity: tier.limit_quantity,
+                };
+
+                // PHÂN BIỆT DATA THEO CAMPAIGN STATUS
+                if (preorderCampaign.status === "upcoming") {
+                  tierData.soldQuantity = reservedCount; // Dùng PreorderSlot
+                } else {
+                  tierData.soldQuantity = tier.sold_quantity; // vẫn lấy từ PreorderTier
+                }
+
+                return tierData;
+              })
+            ),
           };
         } else {
           console.log("No preorder campaign found despite debug showing one!");

@@ -29,10 +29,10 @@ const createAddress = async (data) => {
       full_name: data.fullName,
       phone: data.phone,
       email: data.email || null,
-      address: data.address, // Địa chỉ cụ thể
-      province_code: data.province, // Mã tỉnh '14'
-      district_code: data.district, // Mã huyện '124'
-      ward_code: data.ward, // Mã xã '04075'
+      street_address: data.address, // Địa chỉ cụ thể
+      province: data.province, // Mã tỉnh '14'
+      district: data.district, // Mã huyện '124'
+      ward: data.ward, // Mã xã '04075'
       is_default: data.is_default || data.isDefault || false,
       address_type: data.type || data.address_type || "home", // Dùng 'type' từ data
       customer_id: data.customerId, // Dùng 'customerId' từ data
@@ -123,14 +123,14 @@ const deleteAddress = async (id) => {
     if (!address) {
       return {
         success: false,
-        message: "Address not found",
+        message: "Ko tìm thấy địa chỉ này",
       };
     }
 
     await address.destroy();
     return {
       success: true,
-      message: "Address deleted successfully",
+      message: "Xóa địa chỉ thành công",
     };
   } catch (error) {
     return {

@@ -1,236 +1,171 @@
-// services/checkout.service.js
 const {
-  Cart,
-  CartItem,
   Order,
-  OrderItem,
   OrderAddress,
+  OrderItem,
   Payment,
-  Shipment,
-  VoucherUsage,
-  GuestSession,
-  Address,
   sequelize,
-} = require("../models");
+} = require("@/models");
+const { updateOrderStatus } = require("./orderStatus.service");
+const { initiatePayment } = require("./payment.service");
+const generateOrderNumber = () => {
+  // Ví dụ: 'ORD' + timestamp + random 4 chữ số
+  return `ORD${Date.now()}${Math.floor(Math.random() * 10000)}`;
+};
 
-exports.handleCheckout = async ({
-  user,
+// === Checkout dành cho Customer ===
+async function checkoutCustomerService(
   customerId,
-  sessionId,
+  cartItems,
   formData,
-  ipAddress,
-  userAgent,
-}) => {
-  return await sequelize.transaction(async (t) => {
-    // 1️⃣ Xác định giỏ hàng
-    const cartWhere = {};
-    if (customerId) {
-      cartWhere.customer_id = customerId;
-    } else if (sessionId) {
-      cartWhere.session_id = sessionId;
-    } else {
-      throw new Error("Missing user identifier");
-    }
+  paymentMethod
+) {
+  const transaction = await sequelize.transaction();
 
-    console.log("cartWhere", cartWhere);
-
-    const cart = await Cart.findOne({
-      where: cartWhere,
-      include: [
-        {
-          model: CartItem,
-          as: "items",
-        },
-      ],
-      transaction: t,
-    });
-    console.log("cart", cart);
-    console.log("cart.items", cart?.items);
-
-    if (!cart || !cart.items.length) {
-      throw new Error("Cart is empty or not found");
-    }
-
-    console.log("Processing checkout for:", {
-      customerId,
-      sessionId,
-      cartItems: cart.items.length,
-    });
-
-    // 2️⃣ Lưu địa chỉ giao hàng - SỬA: chỉ dùng các trường có trong model
-    let addressRecord;
-    if (customerId) {
-      // Customer - lưu vào Address table
-      addressRecord = await Address.create(
-        {
-          customer_id: customerId,
-          full_name: formData.fullName,
-          phone: formData.phone,
-          email: formData.email,
-          province: formData.province, // Chỉ dùng province (không có province_name)
-          district: formData.district, // Chỉ dùng district (không có district_name)
-          ward: formData.ward, // Chỉ dùng ward (không có ward_name)
-          street_address: formData.address,
-          is_default: false,
-          created_at: new Date(),
-        },
-        { transaction: t }
-      );
-    } else {
-      // Guest - tạo GuestSession và OrderAddress
-      await GuestSession.create(
-        {
-          session_id: sessionId,
-          ip_address: ipAddress,
-          // ❌ BỎ: user_agent (không có trong model)
-          customer_id: null,
-          created_at: new Date(),
-        },
-        { transaction: t }
-      );
-
-      addressRecord = await OrderAddress.create(
-        {
-          full_name: formData.fullName,
-          phone: formData.phone,
-          email: formData.email,
-          province: formData.province, // Chỉ dùng province
-          district: formData.district, // Chỉ dùng district
-          ward: formData.ward, // Chỉ dùng ward
-          street_address: formData.address,
-          created_at: new Date(),
-        },
-        { transaction: t }
-      );
-    }
-
-    // 3️⃣ Tạo Order - SỬA: chỉ dùng các trường có trong model
+  try {
+    // 1. Tạo Order
     const order = await Order.create(
       {
         customer_id: customerId,
-        order_number: `ORD-${Date.now()}-${Math.random()
-          .toString(36)
-          .substr(2, 9)}`,
-        order_date: new Date(),
-        total_amount: cart.total_amount,
-        discount_amount: cart.discount_amount || 0,
-        voucher_id: cart.voucher_id || null,
-        final_amount: cart.final_amount || cart.total_amount,
+        total_amount: calculateCartTotal(cartItems),
+        payment_method: paymentMethod,
         status: "pending",
-        created_at: new Date(),
+        order_number: generateOrderNumber(),
       },
-      { transaction: t }
+      { transaction }
     );
 
-    // Liên kết địa chỉ vào Order
-    if (!customerId) {
-      // Guest - update OrderAddress với order_id
-      await OrderAddress.update(
-        { order_id: order.id },
-        { where: { id: addressRecord.id }, transaction: t }
-      );
-    } else {
-      // Customer - update Order với address_id
-      await order.update({ address_id: addressRecord.id }, { transaction: t });
-    }
+    // 2. Tạo địa chỉ đơn hàng
+    await OrderAddress.create(
+      {
+        order_id: order.id,
+        full_name: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+        province: formData.province,
+        district: formData.district,
+        ward: formData.ward,
+        street_address: formData.streetAddress,
+      },
+      { transaction }
+    );
 
-    // 4️⃣ Tạo OrderItem
-    const orderItems = [];
-    for (const item of cart.items) {
-      const orderItem = await OrderItem.create(
-        {
-          order_id: order.id,
-          product_id: item.product_id,
-          variant_id: item.variant_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          discount_amount: item.discount_amount || 0,
-          total_price: item.total_price,
-          created_at: new Date(),
-        },
-        { transaction: t }
-      );
-      orderItems.push(orderItem);
-    }
+    // 3. Lưu danh sách sản phẩm
+    const items = cartItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.id,
+      variant_id: item.variant_id,
+      quantity: item.quantity,
+      unit_price: item.price,
+      total_price: item.quantity * item.price,
+    }));
+    await OrderItem.bulkCreate(items, { transaction });
 
-    // 5️⃣ Tạo Payment - SỬA: dùng enum values đúng
+    // 4. Tạo bản ghi Payment
     const payment = await Payment.create(
       {
         order_id: order.id,
-        method: formData.paymentMethod,
-        amount: order.final_amount,
-        status: "pending", // Luôn là pending cho tất cả methods
-        created_at: new Date(),
+        payment_method: paymentMethod,
+        status: paymentMethod === "cod" ? "pending" : "initiated",
       },
-      { transaction: t }
+      { transaction }
     );
-
-    // 6️⃣ Tạo Shipment - SỬA: carrier phù hợp hơn
-    const shipment = await Shipment.create(
-      {
-        order_id: order.id,
-        carrier:
-          formData.deliveryMethod === "home" ? "Giao hàng" : "Nhận tại store",
-        status: "waiting",
-        shipping_fee: 0,
-        estimated_delivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        created_at: new Date(),
-      },
-      { transaction: t }
-    );
-
-    // 7️⃣ Cập nhật VoucherUsage nếu có
-    if (cart.voucher_id && customerId && user) {
-      await VoucherUsage.create(
-        {
-          voucher_id: cart.voucher_id,
-          user_id: user.id,
-          order_id: order.id,
-          used_at: new Date(),
-        },
-        { transaction: t }
-      );
+    await transaction.commit();
+    // 5. Nếu là online payment thì tạo session thanh toán
+    if (paymentMethod !== "cod") {
+      const paymentSession = await initiatePayment(order);
+      return { success: true, paymentSession };
     }
 
-    // 8️⃣ Xóa giỏ hàng sau khi checkout
-    await CartItem.destroy({
-      where: { cart_id: cart.id },
-      transaction: t,
-    });
+    // 6. Nếu COD thì xác nhận luôn
+    await updateOrderStatus(order.id, "confirmed");
+    return { success: true, orderId: order.id };
+  } catch (err) {
+    await transaction.rollback();
+    console.error("Checkout Customer Error:", err);
+    return { success: false, message: err.message };
+  }
+}
 
-    await cart.update(
+// === Checkout dành cho Guest ===
+async function checkoutGuestService(
+  guestSessionId,
+  cartItems,
+  formData,
+  paymentMethod
+) {
+  const transaction = await sequelize.transaction();
+
+  try {
+    // 1. Tạo Order không có customer_id
+    const order = await Order.create(
       {
-        status: "checkedout",
-        total_amount: 0,
-        // ❌ BỎ: item_count (không có trong model Cart)
+        guest_session_id: guestSessionId,
+        total_amount: calculateCartTotal(cartItems),
+        payment_method: paymentMethod,
+        status: "pending",
+        order_number: generateOrderNumber(),
       },
-      { transaction: t }
+      { transaction }
     );
 
-    return {
-      order: {
-        id: order.id,
-        order_number: order.order_number,
-        total_amount: order.total_amount,
-        final_amount: order.final_amount,
-        status: order.status,
+    // 2. Tạo địa chỉ giao hàng
+    await OrderAddress.create(
+      {
+        order_id: order.id,
+        full_name: formData.fullName,
+        phone: formData.phone,
+        email: formData.email,
+        province: formData.province,
+        district: formData.district,
+        ward: formData.ward,
+        street_address: formData.streetAddress,
       },
-      payment: {
-        id: payment.id,
-        method: payment.method,
-        status: payment.status,
-      },
-      shipment: {
-        id: shipment.id,
-        carrier: shipment.carrier,
-        estimated_delivery: shipment.estimated_delivery,
-      },
-      orderItems: orderItems.length,
-    };
-  });
-};
+      { transaction }
+    );
 
-// address ko được lưu từ lần đặt trc
-// thêm chức năng lưu address
-// OrderAddress ko có bản ghi khi checkout
-//
+    // 3. Lưu danh sách sản phẩm
+    const items = cartItems.map((item) => ({
+      order_id: order.id,
+      product_id: item.id,
+      quantity: item.quantity,
+      unit_price: item.price,
+      total_price: item.quantity * item.price,
+    }));
+    await OrderItem.bulkCreate(items, { transaction });
+
+    // 4. Tạo Payment
+    const payment = await Payment.create(
+      {
+        order_id: order.id,
+        payment_method: paymentMethod,
+        status: paymentMethod === "cod" ? "pending" : "initiated",
+      },
+      { transaction }
+    );
+    await transaction.commit();
+    // 5. Thanh toán online → tạo phiên
+    if (paymentMethod !== "cod") {
+      const paymentSession = await initiatePayment(order);
+      return { success: true, paymentSession };
+    }
+
+    // 6. COD → xác nhận luôn
+    await updateOrderStatus(order.id, "confirmed");
+    return { success: true, orderId: order.id };
+  } catch (err) {
+    await transaction.rollback();
+    console.error("Checkout Guest Error:", err);
+    return { success: false, message: err.message };
+  }
+}
+
+// Helper tính tổng tiền
+function calculateCartTotal(cartItems) {
+  console.log("cartItems", cartItems);
+  return cartItems.reduce((sum, item) => sum + +item.price * +item.quantity, 0);
+}
+
+module.exports = {
+  checkoutCustomerService,
+  checkoutGuestService,
+};

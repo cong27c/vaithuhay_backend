@@ -13,6 +13,7 @@ const addressRoute = require("./address.route");
 const searchRoute = require("./search.route");
 const blogRoute = require("./blog.route");
 const preOrderRoute = require("./preOrder.route");
+const orderRoute = require("./order.route");
 
 router.use("/auth", authRoute);
 router.use("/collections", collectionRoute);
@@ -26,5 +27,6 @@ router.use("/addresses", addressRoute);
 router.use("/search", searchRoute);
 router.use("/blogs", blogRoute);
 router.use("/preorder", preOrderRoute);
+router.use("/orders", orderRoute);
 
 module.exports = router;

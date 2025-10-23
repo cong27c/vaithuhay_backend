@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { JWT_SECRET, JWT_EXPIRES_IN, TOKEN_TYPE } = require("@/config/auth");
+const { MAIL_SECRET, MAIL_EXPIRES_IN } = require("../config/auth");
 
 /**
  * Generate access token for user
@@ -20,6 +21,18 @@ const generateAccessToken = (
     token_type: TOKEN_TYPE,
     expires_in: JWT_EXPIRES_IN,
   };
+};
+
+const generatePreorderToken = (payload) => {
+  return jwt.sign(payload, MAIL_SECRET, { expiresIn: MAIL_EXPIRES_IN });
+};
+
+const verifyPreorderToken = (token) => {
+  try {
+    return jwt.verify(token, MAIL_SECRET);
+  } catch (err) {
+    return null;
+  }
 };
 const generateUpdateEmailToken = (
   userId,
@@ -49,4 +62,6 @@ module.exports = {
   generateUpdateEmailToken,
   generateAccessToken,
   verifyAccessToken,
+  generatePreorderToken,
+  verifyPreorderToken,
 };

@@ -1,5 +1,5 @@
 module.exports = {
-  homeUrl: "https://vaithuhay.com/",
+  homeUrl: "https://vaithuhay.com",
   productsUrl: "https://vaithuhay.com/collections/tatcasanpham",
   productDetailUrl: "https://vaithuhay.com/products",
   collectionUrl: "https://vaithuhay.com/collections",
@@ -8,8 +8,9 @@ module.exports = {
     "https://vaithuhay.com/checkouts/b44f571d4f704838a2d22bde8a4ec795",
   productElement: {
     product: ".collection-pro",
-    name: ".caption a h4",
+    price: ".variant_price",
     link: ".caption a",
+    name: ".caption a h4",
     original_price: ".ega-compare-price",
     discounted_price: ".ega-price",
     image: ".vth-thumb a img",
@@ -34,11 +35,8 @@ module.exports = {
     subImage: ".content.gallery--onslide",
   },
   collectionsElement: {
-    item: ".ega-item-sidebar",
-    link: ".ega-item-sidebar a",
-    subLink: ".ega-sidebar-submenu a",
-    name: ".ega-item-sidebar a span",
-    image: ".sidebar-icon-wrap img",
+    collectionList: "discovery__list",
+    collectionItem: ".discovery__item",
   },
   productVariantElement: {
     item: ".preorder-summary.vth-product-summary",
@@ -72,5 +70,25 @@ module.exports = {
     title: ".description a h4",
     author: ".description p strong",
     contentHtml: ".article-main-content",
+  },
+  comboElement: {
+    container: ".container-gallery .slick-list .slick-track", // vào container
+    containerItem: ".item-owl.slick-slide", // trong container có 44 item
+    slideItem: ".slider-big",
+    item: ".item-list.item-owl",
+    groupHotSpots: ".group-btn-pro",
+    containerIn4: ".group-detail",
+    author: ".group-top .create-by strong",
+    desc: ".group-bottom",
+    product: ".collection-pro",
+    name: ".caption a h4",
+    price: ".variant_price",
+    original_price: ".ega-compare-price",
+    discounted_price: ".ega-price",
+    image: ".vth-thumb a img",
+    shortDesc: ".short-desc",
+    detailDesc: ".detail-desc",
+    description: ".Kj.description",
+    productName: ".caption a h4",
   },
 };

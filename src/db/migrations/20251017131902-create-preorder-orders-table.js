@@ -29,6 +29,16 @@ module.exports = {
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
       },
+      campaign_id: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        references: {
+          model: "preorder_campaigns",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
+      },
       guest_email: {
         type: Sequelize.STRING,
         allowNull: true,

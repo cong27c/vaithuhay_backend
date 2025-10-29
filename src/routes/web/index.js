@@ -14,6 +14,8 @@ const searchRoute = require("./search.route");
 const blogRoute = require("./blog.route");
 const preOrderRoute = require("./preOrder.route");
 const orderRoute = require("./order.route");
+const comboRoute = require("./combo.route");
+const shippingRoute = require("./shipping.route");
 
 router.use("/auth", authRoute);
 router.use("/collections", collectionRoute);
@@ -28,5 +30,7 @@ router.use("/search", searchRoute);
 router.use("/blogs", blogRoute);
 router.use("/preorder", preOrderRoute);
 router.use("/orders", orderRoute);
+router.use("/combos", comboRoute);
+router.use("/shipping", shippingRoute);
 
 module.exports = router;

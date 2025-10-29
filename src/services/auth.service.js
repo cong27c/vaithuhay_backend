@@ -1,4 +1,10 @@
-const { User, Customer, Cart } = require("@/models/index");
+const {
+  User,
+  Customer,
+  Cart,
+  RefreshToken,
+  sequelize,
+} = require("@/models/index");
 const { hash, compare } = require("@/utils/bcrypt");
 const jwtService = require("./jwt.service");
 const refreshTokenService = require("./refreshToken.service");
@@ -207,38 +213,60 @@ const getCurrentUser = async (req) => {
     throw err;
   }
 };
-
 const logout = async (refreshToken) => {
-  // 🌀 Bước 1: merge dữ liệu customer → guest
-  const deleted = await refreshTokenService.deleteRefreshToken(refreshToken);
+  try {
+    // Cho phép logout an toàn kể cả khi token đã bị xóa
+    if (!refreshToken) return true;
 
-  // 2️⃣ Sau đó mới merge dữ liệu xuống guest (nếu có)
+    const deleted = await refreshTokenService.deleteRefreshToken(refreshToken);
 
-  return deleted > 0;
+    // Cleanup nhẹ (xóa token hết hạn)
+    await RefreshToken.destroy({
+      where: { expires_at: { [Op.lt]: new Date() } },
+    });
+
+    return deleted > 0;
+  } catch (err) {
+    console.error("Lỗi khi logout:", err);
+    return false;
+  }
 };
 
 const refreshAccessToken = async (refreshTokenString) => {
+  if (!refreshTokenString) throw new Error("Thiếu refresh token.");
+
+  // ✅ Bước 1: Tìm token còn hạn
   const refreshToken = await refreshTokenService.findValidRefreshToken(
     refreshTokenString
   );
+
   if (!refreshToken) {
-    throw new Error("Refresh token không hợp lệ");
+    throw new Error("Refresh token không hợp lệ hoặc đã hết hạn.");
   }
 
+  // ✅ Bước 2: Tạo access token mới
   const tokenData = jwtService.generateAccessToken(refreshToken.user_id);
 
-  await refreshTokenService.deleteRefreshToken(refreshToken);
+  // ✅ Bước 3: Thực hiện xóa token cũ + tạo token mới trong transaction
+  const transaction = await sequelize.transaction();
+  try {
+    await refreshTokenService.deleteRefreshToken(refreshToken, { transaction });
+    const newRefreshToken = await refreshTokenService.createRefreshToken(
+      refreshToken.user_id,
+      { transaction }
+    );
+    await transaction.commit();
 
-  const newRefreshToken = await refreshTokenService.createRefreshToken(
-    refreshToken.user_id
-  );
-
-  return {
-    ...tokenData,
-    refresh_token: newRefreshToken.token,
-  };
+    return {
+      ...tokenData,
+      refresh_token: newRefreshToken.token,
+    };
+  } catch (err) {
+    await transaction.rollback();
+    console.error("Lỗi khi refresh token:", err);
+    throw new Error("Không thể tạo refresh token mới, vui lòng đăng nhập lại.");
+  }
 };
-
 const forgotPassword = async (email) => {
   try {
     const { dataValues: user } = await User.findOne({ where: { email } });

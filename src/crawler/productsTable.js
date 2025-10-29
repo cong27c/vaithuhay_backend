@@ -16,7 +16,7 @@ async function crawlProducts() {
 
       let pageIndex = 1;
       let totalProductsCollected = 0;
-      const maxProductsPerCollection = 15;
+      const maxProductsPerCollection = 30;
 
       while (totalProductsCollected < maxProductsPerCollection) {
         const url = `${collectionUrl}/${col.slug}?page=${pageIndex}`;
@@ -41,6 +41,7 @@ async function crawlProducts() {
 
           return Array.from(items).map((el) => {
             let price =
+              el.querySelector(productElement.price)?.innerText.trim() ||
               el
                 .querySelector(productElement.original_price)
                 ?.innerText.trim() ||

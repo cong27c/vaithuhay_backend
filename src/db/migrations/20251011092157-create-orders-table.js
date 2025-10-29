@@ -15,6 +15,34 @@ module.exports = {
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
       },
+      guest_session_id: {
+        type: Sequelize.UUID,
+        allowNull: true,
+        references: {
+          model: "guest_sessions", // Tên bảng được tham chiếu
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
+      },
+      address_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: "addresses",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
+      },
+      qr_code_url: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
+      virtual_account: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
       order_number: {
         type: Sequelize.STRING(100),
         allowNull: false,
@@ -25,6 +53,7 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
       },
+
       total_amount: { type: Sequelize.DECIMAL(12, 2), allowNull: true },
       discount_amount: {
         type: Sequelize.DECIMAL(12, 2),

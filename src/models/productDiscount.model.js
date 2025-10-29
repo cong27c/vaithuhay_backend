@@ -3,7 +3,12 @@ const { Model } = require("sequelize");
 
 module.exports = (sequelize, DataTypes) => {
   class ProductDiscount extends Model {
-    static associate(models) {}
+    static associate(models) {
+      ProductDiscount.belongsTo(models.Product, {
+        foreignKey: "product_id",
+        as: "product",
+      });
+    }
   }
 
   ProductDiscount.init(

@@ -59,10 +59,6 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      slot_id: {
-        type: DataTypes.INTEGER,
-        allowNull: true,
-      },
       tier_id: {
         type: DataTypes.INTEGER,
         allowNull: true,

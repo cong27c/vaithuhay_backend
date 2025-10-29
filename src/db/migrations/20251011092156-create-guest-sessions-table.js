@@ -8,6 +8,16 @@ module.exports = {
         primaryKey: true,
       },
       session_id: { type: Sequelize.STRING, allowNull: false, unique: true },
+      customer_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: "customers", // tên bảng tham chiếu
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
+      },
       ip_address: { type: Sequelize.STRING, allowNull: true },
       user_agent: { type: Sequelize.TEXT, allowNull: true },
       cart_id: {
@@ -16,6 +26,11 @@ module.exports = {
         references: { model: "carts", key: "id" },
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
+      },
+      expires_at: {
+        type: Sequelize.DATE,
+        allowNull: true,
+        defaultValue: null,
       },
       created_at: {
         type: Sequelize.DATE,

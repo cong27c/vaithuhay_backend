@@ -45,7 +45,39 @@ module.exports = {
         onUpdate: "CASCADE",
         onDelete: "CASCADE",
       },
-
+      variant_id: {
+        type: Sequelize.INTEGER,
+        allowNull: true,
+        references: {
+          model: "product_variants",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
+      },
+      tier_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "preorder_tiers",
+          key: "id",
+        },
+        allowNull: true,
+      },
+      campaign_id: {
+        type: Sequelize.INTEGER, // hoặc Sequelize.BIGINT nếu id của preorder_campaigns là BIGINT
+        allowNull: false,
+        references: {
+          model: "preorder_campaigns", // tên bảng tham chiếu
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE",
+      },
+      username: {
+        type: Sequelize.STRING(100),
+        allowNull: true,
+        defaultValue: "",
+      },
       email: {
         type: Sequelize.STRING(255),
         allowNull: false,
@@ -55,7 +87,11 @@ module.exports = {
         type: Sequelize.STRING(20),
         allowNull: true,
       },
-
+      mail_sent: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
       status: {
         type: Sequelize.STRING(50),
         allowNull: false,

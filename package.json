@@ -4,6 +4,7 @@
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
     "bullmq": "^5.58.5",
+    "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
@@ -21,7 +22,8 @@
     "nodemailer": "^7.0.6",
     "puppeteer": "^24.19.0",
     "pusher": "^5.2.0",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "vietnam-provinces": "^0.0.4"
   },
   "_moduleAliases": {
     "@": "src"

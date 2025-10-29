@@ -2,11 +2,11 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn("orders", "guest_session_id", {
-      type: Sequelize.UUID,
+    await queryInterface.addColumn("cart_items", "combo_id", {
+      type: Sequelize.INTEGER,
       allowNull: true,
       references: {
-        model: "guest_sessions", // Tên bảng được tham chiếu
+        model: "combos",
         key: "id",
       },
       onUpdate: "CASCADE",
@@ -15,6 +15,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn("orders", "guest_session_id");
+    await queryInterface.removeColumn("cart_items", "combo_id");
   },
 };

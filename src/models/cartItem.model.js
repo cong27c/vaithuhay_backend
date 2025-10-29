@@ -13,6 +13,7 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "variant_id",
         as: "ProductVariant",
       });
+      CartItem.belongsTo(models.Combo, { foreignKey: "combo_id", as: "Combo" });
     }
   }
 
@@ -20,10 +21,11 @@ module.exports = (sequelize, DataTypes) => {
     {
       id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
       cart_id: DataTypes.INTEGER,
-      product_id: DataTypes.INTEGER,
-      variant_id: DataTypes.INTEGER,
+      product_id: { type: DataTypes.INTEGER, allowNull: true },
+      variant_id: { type: DataTypes.INTEGER, allowNull: true },
       preorder_slot_id: { type: DataTypes.INTEGER, allowNull: true },
       tier_id: { type: DataTypes.INTEGER, allowNull: true },
+      combo_id: { type: DataTypes.INTEGER, allowNull: true },
       quantity: DataTypes.INTEGER,
       unit_price: DataTypes.DECIMAL(10, 2),
       discount_amount: DataTypes.DECIMAL(10, 2),

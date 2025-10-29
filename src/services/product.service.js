@@ -197,8 +197,6 @@ const productService = {
                 "sold_quantity",
                 "discount_percent",
                 "order_index",
-                "available_quantity",
-                "reserved_quantity",
               ],
               order: [["order_index", "ASC"]],
             },

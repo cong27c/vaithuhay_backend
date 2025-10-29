@@ -1,9 +1,8 @@
 "use strict";
 
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("roles", {
+    await queryInterface.createTable("combos", {
       id: {
         allowNull: false,
         autoIncrement: true,
@@ -11,24 +10,37 @@ module.exports = {
         type: Sequelize.INTEGER,
       },
       name: {
-        type: Sequelize.STRING(100),
+        type: Sequelize.STRING(255),
         allowNull: false,
-        unique: true,
       },
-      slug: {
-        type: Sequelize.STRING(100),
+      author: {
+        type: Sequelize.STRING,
         allowNull: true,
-        unique: true,
+        defaultValue: null,
       },
       description: {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-      level: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
+      created_by: {
+        type: Sequelize.STRING(100),
+        allowNull: true,
+      },
+      style: {
+        type: Sequelize.STRING(100),
+        allowNull: true,
+      },
+      discount_value: {
+        type: Sequelize.FLOAT,
+        allowNull: true,
         defaultValue: 0,
       },
+
+      is_active: {
+        type: Sequelize.BOOLEAN,
+        defaultValue: true,
+      },
+
       created_at: {
         allowNull: false,
         type: Sequelize.DATE,
@@ -37,14 +49,12 @@ module.exports = {
       updated_at: {
         allowNull: false,
         type: Sequelize.DATE,
-        defaultValue: Sequelize.literal(
-          "CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"
-        ),
+        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
       },
     });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("roles");
+    await queryInterface.dropTable("combos");
   },
 };

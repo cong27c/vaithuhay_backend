@@ -1,12 +1,15 @@
 const { Collection } = require("@/models/index");
 const { initBrowser } = require("@/utils/puppeteer");
-const { homeUrl, collectionsElement } = require("@/config/crawler");
+const { collectionUrl, collectionsElement } = require("@/config/crawler");
 
 async function crawlCollections() {
   const { browser, page } = await initBrowser();
 
   try {
-    await page.goto(homeUrl, { waitUntil: "networkidle2", timeout: 120000 });
+    await page.goto(collectionUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 120000,
+    });
 
     const collections = await page.evaluate((collectionsElement) => {
       function getImageUrl(imgEl) {
@@ -23,57 +26,81 @@ async function crawlCollections() {
         return src;
       }
 
-      const nodes = document.querySelectorAll(collectionsElement.item);
-      const results = [];
+      // Lấy collectionList (scope)
+      const collectionList = document.querySelector(
+        `.${collectionsElement.collectionList}`
+      );
+      if (!collectionList) return [];
 
-      nodes.forEach((el) => {
-        // ====== 1. Link chính ======
-        const mainLink = el.querySelector(collectionsElement.link);
-        if (mainLink) {
-          const href = mainLink.getAttribute("href");
-          if (href) {
-            const match = href.match(/\/collections\/([^/?#]+)/);
-            if (match) {
-              const slug = match[1];
-              const name = mainLink.textContent.trim();
-              const imgEl = el.querySelector(collectionsElement.image);
-              const thumbnail = getImageUrl(imgEl);
+      // Lấy tất cả collectionItem trong collectionList
+      const collectionItems = collectionList.querySelectorAll(
+        collectionsElement.collectionItem
+      );
 
-              results.push({ name, slug, thumbnail });
-            }
+      const collectionsData = [];
+
+      collectionItems.forEach((item) => {
+        // Tìm thẻ a có href chứa /collections/
+        const linkElement = item.querySelector('a[href*="/collections/"]');
+
+        if (linkElement) {
+          // Lấy slug từ href
+          const href = linkElement.getAttribute("href");
+          const slugMatch = href.match(/\/collections\/([^\/]+)/);
+          const slug = slugMatch ? slugMatch[1] : "";
+
+          // Lấy thumbnail từ thẻ img
+          const imgElement = linkElement.querySelector("img");
+          const thumbnail = getImageUrl(imgElement);
+
+          // Lấy name từ thẻ span
+          const spanElement = linkElement.querySelector("span");
+          const name = spanElement ? spanElement.textContent.trim() : "";
+
+          if (slug && name) {
+            collectionsData.push({
+              slug,
+              name,
+              thumbnail,
+            });
           }
         }
-
-        // ====== 2. Link submenu ======
-        const subLinks = el.querySelectorAll(collectionsElement.subLink);
-        subLinks.forEach((sub) => {
-          const href = sub.getAttribute("href");
-          if (href) {
-            const match = href.match(/\/collections\/([^/?#]+)/);
-            if (match) {
-              const slug = match[1];
-              const name = sub.textContent.trim();
-              // submenu thường không có icon => để rỗng
-              results.push({ name, slug, thumbnail: "" });
-            }
-          }
-        });
       });
 
-      return results;
+      return collectionsData;
     }, collectionsElement);
 
-    if (collections.length > 0) {
-      await Collection.bulkCreate(collections, { ignoreDuplicates: true });
-      console.log(`✅ Saved ${collections.length} collections`);
-    } else {
-      console.log("⚠️ No collections found");
+    console.log(`Found ${collections.length} collections`);
+
+    // Lưu collections vào database
+    for (const collectionData of collections) {
+      try {
+        // Kiểm tra xem collection đã tồn tại chưa
+        const existingCollection = await Collection.findOne({
+          where: { slug: collectionData.slug },
+        });
+
+        if (existingCollection) {
+          // Cập nhật collection nếu đã tồn tại
+          await existingCollection.update(collectionData);
+          console.log(`Updated collection: ${collectionData.name}`);
+        } else {
+          // Tạo mới collection
+          await Collection.create(collectionData);
+          console.log(`Created collection: ${collectionData.name}`);
+        }
+      } catch (error) {
+        console.error(`Error saving collection ${collectionData.name}:`, error);
+      }
     }
-  } catch (err) {
-    console.error("❌ Error in crawlCollections:", err.message);
+
+    return collections;
+  } catch (error) {
+    console.error("Error crawling collections:", error);
+    throw error;
   } finally {
     await browser.close();
   }
 }
 
-module.exports = crawlCollections;
+module.exports = { crawlCollections };

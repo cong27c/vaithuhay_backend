@@ -25,8 +25,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "product_id",
         as: "discount",
       });
-      Product.hasOne(models.ProductDetail, { foreignKey: "product_id" });
-
+      Product.hasOne(models.ProductDetail, {
+        foreignKey: "product_id",
+        as: "detail",
+      });
       Product.hasMany(models.Review, {
         foreignKey: "product_id",
         as: "reviews",
@@ -53,6 +55,18 @@ module.exports = (sequelize, DataTypes) => {
       Product.hasMany(models.CartItem, {
         foreignKey: "product_id",
         as: "CartItem",
+      });
+
+      Product.belongsToMany(models.Combo, {
+        through: models.ComboProduct,
+        foreignKey: "product_id",
+        otherKey: "combo_id",
+        as: "combos",
+      });
+
+      Product.hasMany(models.ComboProduct, {
+        foreignKey: "product_id",
+        as: "comboProducts",
       });
     }
   }
@@ -91,6 +105,12 @@ module.exports = (sequelize, DataTypes) => {
         validate: {
           min: 0,
         },
+      },
+      weight: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+        defaultValue: 0,
+        comment: "Trọng lượng sản phẩm (gram)",
       },
       release_date: DataTypes.DATE, // Thêm mới
       status: {

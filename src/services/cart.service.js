@@ -1,7 +1,79 @@
-const { Cart, CartItem, Product, ProductVariant } = require("@/models");
+const {
+  Cart,
+  CartItem,
+  Product,
+  ProductVariant,
+  Combo,
+  ComboProduct,
+  ProductImage,
+  ProductDiscount,
+} = require("@/models");
+const formatCurrency = require("@/utils/formatCurrency");
 const throwError = require("@/utils/throwError");
+const { Op } = require("sequelize");
 
 const cartService = {
+  async calculateComboPrice(comboId) {
+    // Lấy combo cùng danh sách sản phẩm
+    const combo = await Combo.findByPk(comboId, {
+      include: {
+        model: ComboProduct,
+        as: "products",
+        include: [
+          {
+            model: Product,
+            as: "product",
+            attributes: ["id", "name", "price"],
+            include: [
+              {
+                model: ProductDiscount,
+                as: "discount",
+                where: {
+                  status: "active",
+                  [Op.and]: [
+                    { start_date: { [Op.lte]: new Date() } },
+                    { end_date: { [Op.gte]: new Date() } },
+                  ],
+                },
+                required: false,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    if (!combo) throw new Error("Combo not found");
+
+    let totalPrice = 0;
+
+    // ✅ Tính tổng giá sau khi áp dụng discount của từng product
+    for (const cp of combo.products) {
+      const product = cp.product;
+      if (!product) continue;
+
+      let productPrice = parseFloat(product.price || 0);
+      const discount = product.discounts?.[0];
+
+      if (discount) {
+        if (discount.discount_type === "percent") {
+          productPrice -= (productPrice * discount.discount_value) / 100;
+        } else if (discount.discount_type === "fixed") {
+          productPrice -= parseFloat(discount.discount_value);
+        }
+      }
+
+      totalPrice += productPrice * (cp.quantity || 1);
+    }
+
+    // ✅ Áp dụng discount_value của combo (theo %)
+    if (combo.discount_value) {
+      totalPrice -= (totalPrice * combo.discount_value) / 100;
+    }
+
+    return totalPrice > 0 ? parseFloat(totalPrice.toFixed(2)) : 0;
+  },
+
   async recalculateCartTotals(cartId) {
     const items = await CartItem.findAll({
       where: { cart_id: cartId },
@@ -73,12 +145,22 @@ const cartService = {
       }
 
       // 4️⃣ Thêm hoặc cập nhật CartItem
+      // Xây dựng điều kiện WHERE linh hoạt
+      const cartItemWhere = {
+        cart_id: cart.id,
+        product_id: productId,
+      };
+
+      // Chỉ thêm variant_id vào điều kiện nếu có giá trị
+      if (variantId) {
+        cartItemWhere.variant_id = variantId;
+      } else {
+        // Nếu không có variantId, tìm các cart item có variant_id là null
+        cartItemWhere.variant_id = null;
+      }
+
       let cartItem = await CartItem.findOne({
-        where: {
-          cart_id: cart.id,
-          product_id: productId,
-          variant_id: variantId,
-        },
+        where: cartItemWhere,
       });
 
       if (cartItem) {
@@ -89,7 +171,7 @@ const cartService = {
         cartItem = await CartItem.create({
           cart_id: cart.id,
           product_id: productId,
-          variant_id: variantId,
+          variant_id: variantId || null, // Đảm bảo variant_id là null nếu không có
           quantity,
           unit_price: unitPrice,
           discount_amount: 0,
@@ -102,13 +184,11 @@ const cartService = {
       return { cart, cartItem };
     } catch (error) {
       console.error("Error in addItem:", error);
-      throwError(500, "Failed to add item to cart");
+      throwError("Failed to add item to cart", 500);
     }
   },
-
   async getCartItems({ customerId, sessionId }) {
     try {
-      // Validation
       let cart;
 
       if (customerId) {
@@ -126,19 +206,20 @@ const cartService = {
       if (!cart) {
         return { success: true, data: [], message: "Cart not found" };
       }
+
       const cartItems = await CartItem.findAll({
         where: { cart_id: cart.id },
         include: [
           {
             model: Product,
-            attributes: ["id", "name", "slug"],
+            attributes: ["id", "name", "slug", "weight"],
             required: true,
             as: "Product",
           },
           {
             model: ProductVariant,
             attributes: ["id", "name", "image_url"],
-            required: true,
+            required: false,
             as: "ProductVariant",
           },
         ],
@@ -152,41 +233,54 @@ const cartService = {
         order: [["created_at", "DESC"]],
       });
 
-      // Nếu không có items
       if (!cartItems || cartItems.length === 0) {
-        return {
-          success: true,
-          data: [],
-          message: "Cart is empty",
-        };
+        return { success: true, data: [], message: "Cart is empty" };
       }
 
-      // Format data với xử lý variant name
-      const formattedItems = cartItems.map((item) => {
-        const productName = item.Product?.name || "N/A";
-        const variantFullName = item.ProductVariant?.name || "N/A";
+      // --- xử lý logic ảnh chính nếu không có variant ---
+      const formattedItems = await Promise.all(
+        cartItems.map(async (item) => {
+          const productName = item.Product?.name || "N/A";
+          const variantFullName = item.ProductVariant?.name || "N/A";
 
-        // Xử lý để lấy phần variant name (loại bỏ product name)
-        let variantName = variantFullName;
-        if (variantFullName.includes(productName)) {
-          variantName = variantFullName.replace(productName, "").trim();
-          // Loại bỏ dấu "-" thừa ở đầu nếu có
-          if (variantName.startsWith("-")) {
-            variantName = variantName.substring(1).trim();
+          // Lấy tên biến thể (bỏ tên sản phẩm)
+          let variantName = variantFullName;
+          if (variantFullName.includes(productName)) {
+            variantName = variantFullName.replace(productName, "").trim();
+            if (variantName.startsWith("-")) {
+              variantName = variantName.substring(1).trim();
+            }
           }
-        }
 
-        return {
-          id: item.id,
-          name: productName,
-          slug: item.Product?.slug,
-          variant: variantName,
-          price: parseFloat(item.unit_price) || 0,
-          quantity: item.quantity || 0,
-          image: item.ProductVariant?.image_url || "",
-          checked: false,
-        };
-      });
+          // --- logic ảnh ---
+          let image = item.ProductVariant?.image_url || "";
+
+          // Nếu không có variant hoặc không có ảnh → lấy ảnh chính của sản phẩm
+          if (!image && item.Product?.id) {
+            const mainImage = await ProductImage.findOne({
+              where: {
+                product_id: item.Product.id,
+                is_main: true,
+              },
+            });
+            if (mainImage) {
+              image = mainImage.image_url;
+            }
+          }
+
+          return {
+            id: item.id,
+            name: productName,
+            slug: item.Product?.slug,
+            weight: item.Product?.weight,
+            variant: variantName,
+            price: parseFloat(item.unit_price) || 0,
+            quantity: item.quantity || 0,
+            image, // luôn có giá trị
+            checked: false,
+          };
+        })
+      );
 
       return {
         success: true,
@@ -523,6 +617,277 @@ const cartService = {
 
       // Nếu là lỗi thông thường thì wrap thành throwError
       throwError(500, "Failed to update cart item variant", err.message);
+    }
+  },
+
+  ///// COMBOS
+  async addCombo({
+    customerId,
+    sessionId,
+    comboId,
+    quantity = 1,
+    userAgent,
+    ipAddress,
+  }) {
+    try {
+      // 1️⃣ Xác định cart hiện tại
+      let whereClause = {};
+      if (customerId)
+        whereClause = { customer_id: customerId, status: "active" };
+      else if (sessionId)
+        whereClause = { session_id: sessionId, status: "active" };
+      else throw new Error("Missing both customer_id and session_id");
+
+      let cart = await Cart.findOne({ where: whereClause });
+      if (!cart) {
+        cart = await Cart.create({
+          customer_id: customerId || null,
+          session_id: sessionId || null,
+          total_amount: 0,
+          discount_amount: 0,
+          final_amount: 0,
+          status: "active",
+          user_agent: userAgent,
+          ip_address: ipAddress,
+          created_at: new Date(),
+        });
+      }
+
+      // 2️⃣ Tính giá combo (unitPrice)
+      const unitPrice = await this.calculateComboPrice(comboId);
+
+      // 3️⃣ Tìm cart item combo hiện tại
+      let cartItem = await CartItem.findOne({
+        where: { cart_id: cart.id, combo_id: comboId },
+      });
+
+      if (cartItem) {
+        cartItem.quantity += quantity;
+        cartItem.total_price = cartItem.quantity * unitPrice;
+        await cartItem.save();
+      } else {
+        cartItem = await CartItem.create({
+          cart_id: cart.id,
+          combo_id: comboId,
+          quantity,
+          unit_price: unitPrice,
+          discount_amount: 0,
+          total_price: unitPrice * quantity,
+        });
+      }
+
+      // 4️⃣ Cập nhật tổng cart
+      await this.recalculateCartTotals(cart.id);
+
+      return {
+        success: true,
+        data: cartItem,
+        message: "Combo added to cart",
+      };
+    } catch (error) {
+      console.error("Error in addCombo:", error);
+      return { success: false, error: "Failed to add combo to cart" };
+    }
+  },
+
+  async getCartCombos({ customerId, sessionId }) {
+    try {
+      // 1️⃣ Tìm giỏ hàng đang hoạt động
+      let cart;
+      if (customerId)
+        cart = await Cart.findOne({
+          where: { customer_id: customerId, status: "active" },
+        });
+      else if (sessionId)
+        cart = await Cart.findOne({
+          where: { session_id: sessionId, status: "active" },
+        });
+      else throwError(400, "Missing customerId or sessionId");
+
+      if (!cart) return { success: true, data: [], message: "Cart not found" };
+
+      // 2️⃣ Lấy combo items kèm ảnh sản phẩm
+      const comboItems = await CartItem.findAll({
+        where: { cart_id: cart.id, combo_id: { [Op.ne]: null } },
+        attributes: ["id", "quantity"],
+        include: [
+          {
+            model: Combo,
+            as: "Combo",
+            attributes: ["id", "name", "discount_value"],
+            include: [
+              {
+                model: ComboProduct,
+                as: "products",
+                include: [
+                  {
+                    model: Product,
+                    as: "product",
+                    attributes: ["id", "name", "price", "weight"],
+                    include: [
+                      {
+                        model: ProductImage,
+                        as: "images",
+                        attributes: ["image_url", "is_main"],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+        order: [["created_at", "DESC"]],
+      });
+
+      // 3️⃣ Format dữ liệu trả về
+      const formatted = comboItems
+        .map((item) => {
+          const combo = item.Combo;
+          if (!combo) return null;
+
+          const products =
+            combo.products?.map((cp) => {
+              const product = cp.product;
+
+              // 🔹 Chọn ảnh: ưu tiên is_main, nếu không có thì lấy bừa ảnh đầu
+              let image = null;
+              if (product?.images?.length > 0) {
+                const mainImage = product.images.find((img) => img.is_main);
+                image = mainImage?.image_url || product.images[0].image_url;
+              }
+
+              const price = parseFloat(product?.price) || 0;
+              const productQuantity = cp.quantity || 1;
+
+              return {
+                id: product?.id,
+                name: product?.name,
+                price,
+                weight: product?.weight,
+                image,
+                quantity: productQuantity,
+                subtotal: price * productQuantity,
+              };
+            }) || [];
+
+          const totalPrice = products.reduce((sum, p) => sum + p.subtotal, 0);
+          const discountValue = combo.discount_value || 0;
+          const discountPrice = totalPrice * (1 - discountValue / 100);
+
+          const unitPrice = parseFloat(item.unit_price) || discountPrice;
+          const itemTotal =
+            parseFloat(item.total_price) || unitPrice * item.quantity;
+
+          return {
+            id: item.id,
+            comboId: combo.id,
+            name: combo.name,
+            price: unitPrice,
+            quantity: item.quantity, // Quantity từ CartItem
+            total: itemTotal,
+
+            totalPrice,
+            originalTotal: totalPrice * item.quantity,
+            discountedTotal: discountPrice * item.quantity,
+            discountValue,
+
+            products,
+          };
+        })
+        .filter(Boolean);
+
+      return { success: true, data: formatted };
+    } catch (error) {
+      console.error("❌ Error in getCartCombos:", error);
+      return { success: false, error: "Failed to get cart combos" };
+    }
+  },
+
+  async updateCartComboQuantity(
+    cartItemId,
+    quantity,
+    { customerId, sessionId }
+  ) {
+    try {
+      if (!cartItemId || isNaN(cartItemId))
+        return { success: false, error: "Invalid combo item ID" };
+      if (!quantity || quantity < 1)
+        return { success: false, error: "Quantity must be at least 1" };
+
+      const whereCart = {};
+      if (customerId) whereCart.customer_id = customerId;
+      else if (sessionId) whereCart.session_id = sessionId;
+      else return { success: false, error: "Missing user identifier" };
+
+      const cartItem = await CartItem.findOne({
+        where: { id: parseInt(cartItemId) },
+        attributes: ["id", "quantity", "unit_price", "cart_id"],
+        include: [
+          { model: Cart, where: whereCart, as: "Cart", attributes: ["id"] },
+          {
+            model: Combo,
+            as: "Combo",
+            attributes: ["id"],
+          },
+        ],
+      });
+
+      if (!cartItem)
+        return { success: false, error: "Combo cart item not found" };
+      const unitPrice = cartItem.unit_price || 0;
+      const totalPrice = unitPrice * quantity;
+
+      await cartItem.update({ quantity, total_price: totalPrice });
+
+      await this.recalculateCartTotals(cartItem.cart_id);
+
+      return { success: true, message: "Combo quantity updated" };
+    } catch (error) {
+      console.error("Error in updateCartComboQuantity:", error);
+      return { success: false, error: "Failed to update combo quantity" };
+    }
+  },
+
+  async removeCartCombo(cartItemId, { customerId, sessionId }) {
+    try {
+      if (!cartItemId || isNaN(cartItemId))
+        return { success: false, error: "Invalid combo item ID" };
+
+      const whereCart = {};
+      if (customerId) whereCart.customer_id = parseInt(customerId);
+      else if (sessionId) whereCart.session_id = sessionId;
+      else return { success: false, error: "Missing user identifier" };
+
+      const cartItem = await CartItem.findOne({
+        where: { id: parseInt(cartItemId) },
+        include: [
+          {
+            model: Cart,
+            where: whereCart,
+            attributes: ["id"],
+            required: true,
+            as: "Cart",
+          },
+        ],
+      });
+
+      if (!cartItem)
+        return {
+          success: false,
+          error: "Combo item not found or unauthorized",
+        };
+
+      const cartId = cartItem.cart_id;
+
+      await CartItem.destroy({ where: { id: parseInt(cartItemId) } });
+
+      await this.recalculateCartTotals(cartId);
+
+      return { success: true, message: "Combo removed successfully" };
+    } catch (error) {
+      console.error("Error in removeCartCombo:", error);
+      return { success: false, error: "Failed to remove combo" };
     }
   },
 };

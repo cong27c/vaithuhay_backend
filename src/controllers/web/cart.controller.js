@@ -7,6 +7,9 @@ const addToCart = async (req, res) => {
     const { productId, variantId, quantity } = req.body;
     const customerId = req.user?.customerId || null;
 
+    console.log("productId", productId);
+    console.log("variantId", variantId);
+    console.log("quantity", quantity);
     // Lấy thông tin thiết bị
     const userAgent = req.headers["user-agent"];
     const ipAddress = req.ip;
@@ -169,10 +172,103 @@ const updateCartItemVariant = async (req, res) => {
   }
 };
 
+const addComboToCart = async (req, res) => {
+  try {
+    const { comboId, quantity } = req.body;
+    const customerId = req.user?.customerId || null;
+    console.log("comboId", comboId);
+    console.log("quantity", quantity);
+    // Lấy thông tin thiết bị
+
+    const userAgent = req.headers["user-agent"];
+    const ipAddress = req.ip;
+
+    let sessionId;
+    if (!customerId) {
+      sessionId = req.guestSession?.id;
+      if (!sessionId) throwError(401, "Session ID required for guest users");
+    }
+
+    const result = await cartService.addCombo({
+      customerId,
+      sessionId,
+      comboId,
+      quantity,
+      userAgent,
+      ipAddress,
+    });
+
+    return success(res, 200, result);
+  } catch (err) {
+    return error(res, err.status || 500, err.message);
+  }
+};
+
+/**
+ * Lấy danh sách combo trong giỏ hàng
+ */
+const getCartCombos = async (req, res) => {
+  try {
+    const customerId = req.user?.customerId || null;
+    const sessionId = req.guestSession?.id || null;
+
+    const result = await cartService.getCartCombos({ customerId, sessionId });
+
+    return success(res, 200, result);
+  } catch (err) {
+    return error(res, err.status || 500, err.message);
+  }
+};
+
+/**
+ * Cập nhật số lượng combo trong giỏ hàng
+ */
+const updateCartComboQuantity = async (req, res) => {
+  try {
+    const { cartItemId, quantity } = req.body;
+    const customerId = req.user?.customerId || null;
+    const sessionId = req.guestSession?.id || null;
+
+    const result = await cartService.updateCartComboQuantity(
+      cartItemId,
+      quantity,
+      { customerId, sessionId }
+    );
+
+    return success(res, 200, result);
+  } catch (err) {
+    return error(res, err.status || 500, err.message);
+  }
+};
+
+/**
+ * Xóa combo khỏi giỏ hàng
+ */
+const removeCartCombo = async (req, res) => {
+  try {
+    const { cartItemId } = req.params;
+    const customerId = req.user?.customerId || null;
+    const sessionId = req.guestSession?.id || null;
+
+    const result = await cartService.removeCartCombo(cartItemId, {
+      customerId,
+      sessionId,
+    });
+
+    return success(res, 200, result);
+  } catch (err) {
+    return error(res, err.status || 500, err.message);
+  }
+};
+
 module.exports = {
   getCartItems,
   addToCart,
   updateQuantity,
   removeCartItem,
   updateCartItemVariant,
+  addComboToCart,
+  getCartCombos,
+  updateCartComboQuantity,
+  removeCartCombo,
 };

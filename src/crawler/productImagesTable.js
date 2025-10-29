@@ -1,6 +1,7 @@
 const { Product, ProductImage } = require("@/models/index");
 const { initBrowser } = require("@/utils/puppeteer");
 const { productDetailUrl, productImagesElement } = require("@/config/crawler");
+const cloudinary = require("@/config/cloudinary");
 
 async function productImagesTable() {
   const products = await Product.findAll({ attributes: ["id", "slug"] });
@@ -78,26 +79,41 @@ async function productImagesTable() {
         console.log("Crawled mainImage:", images.mainImage);
         console.log("Crawled subImages count:", images.subImages.length);
 
-        // ✅ Chuẩn hóa & xử lý: mainImage trước, rồi mới subImages
+        // ✅ Chuẩn hóa & xử lý: mainImage trước, rồi mới subImages (GIỮ NGUYÊN LOGIC)
         const data = [];
         const uniqueImages = new Set();
 
-        // Lưu main image trước (là ảnh đầu tiên của subImages)
+        // Lưu main image trước (là ảnh đầu tiên của subImages) - GIỮ NGUYÊN
         if (images.mainImage) {
+          // ✅ THÊM: Upload lên Cloudinary trước khi lưu
+          const cloudinaryResult = await cloudinary.uploader.upload(
+            images.mainImage,
+            {
+              folder: "products",
+              resource_type: "auto",
+            }
+          );
+
           data.push({
             product_id: product.id,
-            image_url: images.mainImage,
+            image_url: cloudinaryResult.secure_url, // ✅ Dùng link Cloudinary
             is_main: true,
           });
           uniqueImages.add(images.mainImage);
         }
 
-        // Lưu sub images sau (loại bỏ ảnh trùng main)
+        // Lưu sub images sau (loại bỏ ảnh trùng main) - GIỮ NGUYÊN LOGIC
         for (const sub of images.subImages) {
           if (sub && !uniqueImages.has(sub)) {
+            // ✅ THÊM: Upload lên Cloudinary trước khi lưu
+            const cloudinaryResult = await cloudinary.uploader.upload(sub, {
+              folder: "products",
+              resource_type: "auto",
+            });
+
             data.push({
               product_id: product.id,
-              image_url: sub,
+              image_url: cloudinaryResult.secure_url, // ✅ Dùng link Cloudinary
               is_main: false,
             });
             uniqueImages.add(sub);

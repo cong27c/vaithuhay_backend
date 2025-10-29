@@ -36,6 +36,10 @@ module.exports = {
         type: Sequelize.TEXT,
         allowNull: true,
       },
+      release_date: {
+        type: Sequelize.DATE,
+        allowNull: true,
+      },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,

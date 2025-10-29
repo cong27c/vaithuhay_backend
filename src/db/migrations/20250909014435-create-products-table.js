@@ -32,7 +32,12 @@ module.exports = {
         allowNull: true,
       },
       status: {
-        type: Sequelize.STRING(50),
+        type: Sequelize.ENUM("coming_soon", "pre_order", "available"),
+        allowNull: false,
+        defaultValue: "available",
+      },
+      release_date: {
+        type: Sequelize.DATE,
         allowNull: true,
       },
       brand_id: {

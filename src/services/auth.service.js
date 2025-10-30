@@ -275,6 +275,8 @@ const forgotPassword = async (email) => {
       throw new Error("Thông tin không hợp lệ.");
     }
     queue.dispatch("sendVerifyEmailJob", { userId, type: "forgot-password" });
+
+    return { message: "Đã gửi email xác minh, vui lòng kiểm tra hộp thư." };
   } catch (err) {
     console.log(err);
   }
@@ -292,11 +294,30 @@ const resetPassword = async (token, newPassword) => {
 
     await User.update({ password: hashNewPassword }, { where: { id: userId } });
 
-    return user;
+    return { message: "Đổi mật khẩu thành công" };
   } catch (error) {
     console.log(error);
     throw new Error(error);
   }
+};
+
+const verifyEmail = async (email) => {
+  // Kiểm tra email
+  const user = await User.findOne({ where: { email } });
+  if (!user) throwError("Email không tồn tại.", 404);
+
+  // Kiểm tra trạng thái xác minh
+  if (user.isVerified) {
+    throwError("Email này đã được xác minh.", 400);
+  }
+
+  // Gửi job xác minh
+  await queue.dispatch("sendVerifyEmailJob", {
+    userId: user.id,
+    type: "verify",
+  });
+
+  return { message: "Đã gửi email xác minh, vui lòng kiểm tra hộp thư." };
 };
 
 module.exports = {
@@ -307,6 +328,7 @@ module.exports = {
   login,
   register,
   verify,
+  verifyEmail,
   forgotPassword,
   resetPassword,
 };

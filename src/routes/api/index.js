@@ -1,16 +1,11 @@
 const express = require("express");
 const router = express.Router({ mergeParams: true });
+const userRoute = require("./user.route");
+const websocketRoute = require("./websocket.route");
+const voucherRoutes = require("./voucher.route");
 
-router.post("/pusher/auth", (req, res) => {
-  const socketId = req.body.socket_id;
-  const channelName = req.body.channel_name;
+router.use("/users", userRoute);
+router.use("/pusher", websocketRoute);
+router.use("/vouchers", voucherRoutes);
 
-  const userId = req.user?.id;
-  if (!userId) {
-    return res.status(403).send("Unauthorized");
-  }
-
-  const auth = pusher.authenticate(socketId, channelName);
-  res.send(auth);
-});
 module.exports = router;

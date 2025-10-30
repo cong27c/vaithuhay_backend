@@ -75,16 +75,14 @@ const logout = async (req, res) => {
   const refreshToken = req.cookies.refresh_token;
   if (!refreshToken) return error(res, 400, "Refresh token required");
   try {
-    const result = await authService.logout(
-      refreshToken,
-      customerId,
-      sessionId
-    );
+    const result = await authService.logout(refreshToken);
+
     if (!result) return error(res, 400, "Invalid refresh token");
     res.clearCookie("refresh_token", {
       httpOnly: true,
-      secure: false, // nếu bạn dùng https
+      secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
+      path: "/", // <--- KHUNG giống hệt
     });
     return success(res, 201);
   } catch (err) {
@@ -125,10 +123,10 @@ const refreshToken = async (req, res) => {
 
 const sendForgotEmail = async (req, res) => {
   try {
-    authService.forgotPassword(req.body.email);
-    res.status(200).send("");
+    const result = authService.forgotPassword(req.body.email);
+    return success(res, 200, result);
   } catch (error) {
-    throw new Error(error);
+    return error(res, err.status || 500, err.message, err.errors);
   }
 };
 
@@ -138,11 +136,21 @@ const resetPassword = async (req, res) => {
     if (!token) {
       return error(res, 400, "Token không được để trống");
     }
-    authService.resetPassword(token, password);
+    const result = authService.resetPassword(token, password);
 
-    res.status(200).send("");
+    return success(res, 200, result);
   } catch (error) {
-    throw new Error(error);
+    return error(res, err.status || 500, err.message, err.errors);
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const result = await authService.verifyEmail(email);
+    return success(res, 200, result);
+  } catch (err) {
+    return error(res, err.status || 500, err.message, err.errors);
   }
 };
 
@@ -156,4 +164,5 @@ module.exports = {
   logout,
   sendForgotEmail,
   resetPassword,
+  verifyEmail,
 };

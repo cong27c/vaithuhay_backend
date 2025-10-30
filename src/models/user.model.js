@@ -60,6 +60,12 @@ module.exports = (sequelize, DataTypes) => {
           isIn: [["active", "inactive", "suspended"]],
         },
       },
+      role: {
+        type: DataTypes.ENUM("admin", "staff", "customer"),
+        allowNull: false,
+        defaultValue: "customer",
+      },
+
       last_login_at: {
         type: DataTypes.DATE,
         allowNull: true,

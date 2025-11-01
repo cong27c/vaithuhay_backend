@@ -2,7 +2,6 @@ const { Review, ReviewMedia, Order, User, Product } = require("@/models");
 
 const reviewService = {
   async createReview(reviewData, userId) {
-    console.log("hello");
     const { title, content, rating, product_id, order_id, images, video } =
       reviewData;
 

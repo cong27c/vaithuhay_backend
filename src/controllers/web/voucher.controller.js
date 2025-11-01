@@ -13,15 +13,20 @@ const getVouchers = async (req, res) => {
 
 const applyVoucher = async (req, res) => {
   try {
-    const customerId = req.user?.customerId; // lấy từ token/session
-    if (!customerId) throwError("Unauthorized", 401);
+    const customerId = req.user?.customerId || null;
+    const { voucherCode } = req.body;
 
-    const { cartId, voucherCode } = req.body;
-    if (!cartId || !voucherCode) throwError("Thiếu dữ liệu", 400);
+    let sessionId;
+    if (!customerId) {
+      sessionId = req.guestSession?.id;
+      if (!sessionId) {
+        throwError(401, "Session ID required for guest users");
+      }
+    }
 
     const result = await voucherService.applyVoucher(
       customerId,
-      cartId,
+      sessionId,
       voucherCode
     );
 

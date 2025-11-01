@@ -92,13 +92,10 @@ const voucherService = {
           case "collection": {
             // value là mảng collection_ids [11]
             const collectionIds = Array.isArray(value) ? value : [value];
-            console.log("collectionIds", collectionIds);
 
             // Kiểm tra từng sản phẩm trong giỏ hàng
             const hasCollection = cartItems.some((item) => {
-              console.log("item.Product", item.Product);
-              console.log("item.Product.collections", item.Product.collections);
-              if (!item.Product || !item.Product.collections) return false;
+              if (!item.Product || !item.Product?.collections) return false;
 
               return item.Product.collections.some((collection) =>
                 collectionIds.includes(collection.id)
@@ -170,8 +167,13 @@ const voucherService = {
       throw error;
     }
   },
-  async applyVoucher(customerId, cartId, voucherCode) {
+
+  async applyVoucher(customerId, sessionId, voucherCode) {
     try {
+      console.log("customerId", customerId);
+      console.log("sessionId", sessionId);
+      console.log("voucherCode", voucherCode);
+
       // 1. Lấy voucher
       const voucher = await Voucher.findOne({
         where: {
@@ -182,6 +184,7 @@ const voucherService = {
         },
         include: [{ model: VoucherCondition, as: "conditions" }],
       });
+
       if (!voucher) {
         return {
           success: false,
@@ -189,29 +192,60 @@ const voucherService = {
         };
       }
 
-      // 2. Lấy giỏ hàng - THÊM INCLUDE COLLECTIONS
-      const cart = await Cart.findByPk(cartId, {
-        include: [
-          {
-            model: CartItem,
-            as: "items",
-            include: [
-              {
-                model: Product,
-                as: "Product",
-                include: [
-                  // THÊM DÒNG NÀY
-                  {
-                    model: Collection,
-                    as: "collections",
-                    through: { attributes: [] }, // ẩn bảng trung gian
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      });
+      // 2. Lấy giỏ hàng dựa trên customerId hoặc sessionId
+      let cart;
+      if (customerId) {
+        cart = await Cart.findOne({
+          where: { customer_id: customerId, status: "active" },
+          include: [
+            {
+              model: CartItem,
+              as: "items",
+              include: [
+                {
+                  model: Product,
+                  as: "Product",
+                  include: [
+                    {
+                      model: Collection,
+                      as: "collections",
+                      through: { attributes: [] },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+      } else if (sessionId) {
+        cart = await Cart.findOne({
+          where: { session_id: sessionId, status: "active" },
+          include: [
+            {
+              model: CartItem,
+              as: "items",
+              include: [
+                {
+                  model: Product,
+                  as: "Product",
+                  include: [
+                    {
+                      model: Collection,
+                      as: "collections",
+                      through: { attributes: [] },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+      } else {
+        return {
+          success: false,
+          message: "Không tìm thấy giỏ hàng: cần customerId hoặc sessionId",
+        };
+      }
 
       if (!cart || !cart.items.length) {
         return {
@@ -236,8 +270,6 @@ const voucherService = {
       } else {
         discount = voucher.voucher_value;
       }
-
-      // Đảm bảo discount không vượt quá subtotal
       discount = Math.min(discount, subtotal);
 
       // 6. Trả dữ liệu thành công

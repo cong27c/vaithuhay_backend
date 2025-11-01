@@ -17,6 +17,7 @@ const productImagesTable = require("@/crawler/productImagesTable");
 const { crawlProductVariants } = require("@/crawler/productVariantsTable");
 const crawlBlogProducts = require("@/crawler/blogProducts");
 const crawlBlogSystems = require("@/crawler/blogSystem");
+const adminAuthMiddleware = require("@/middlewares/adminAuthMiddleware");
 // const startPreorderCron = require('./cron/preorderCron');
 
 const app = express();
@@ -99,9 +100,10 @@ async function runAllCrawlers() {
 //   }
 // })();
 
-app.use(optionalAuth);
+app.use("/", optionalAuth); // Cho web routes
+app.use("/", guestSessionMiddleware);
 
-app.use(guestSessionMiddleware);
+app.use("/api/v1", adminAuthMiddleware); // Chỉ auth, không guest session
 
 app.use("/", webRouter);
 app.use("/api/v1", apiRouter);

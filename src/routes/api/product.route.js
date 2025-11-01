@@ -1,14 +1,34 @@
-// const express = require("express");
-// const bookmarkController = require("@/controllers/web/bookmark.controller");
+const express = require("express");
+const router = express.Router();
+const multer = require("multer");
+const productController = require("@/controllers/api/product.controller");
+const productImageController = require("@/controllers/api/productImage.controller");
 
-// const router = express.Router();
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
 
-// router.get("/me/bookmarks", authJWT, bookmarkController.getUserBookmarks);
-// router.post("/posts/:id/bookmarks", authJWT, bookmarkController.toggleBookmark);
-// router.delete(
-//   "/bookmarks/clear",
-//   authJWT,
-//   bookmarkController.clearAllBookmarks
-// );
+// 📦 Product CRUD routes
+router.get("/", productController.getAllProducts);
+router.get("/:id", productController.getProductById);
+router.post("/", productController.createProduct);
+router.put("/:id", productController.updateProduct);
+router.delete("/:id", productController.deleteProduct);
 
-// module.exports = router;
+// Ảnh sản phẩm
+router.post(
+  "/:productId/images",
+  upload.single("file"),
+  productImageController.uploadByProduct
+);
+router.delete("/:productId/images", productImageController.deleteAllByProduct);
+router.delete(
+  "/:productId/images/:imageId",
+  productImageController.deleteSingleByProduct
+);
+
+// 🔄 Product Variant routes
+router.post("/:productId/variants", productController.createProductVariant);
+router.put("/variants/:variantId", productController.updateProductVariant);
+router.delete("/variants/:variantId", productController.deleteProductVariant);
+
+module.exports = router;

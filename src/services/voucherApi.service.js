@@ -1,4 +1,10 @@
-const { Voucher, VoucherCondition, VoucherUsage } = require("@/models");
+const {
+  Voucher,
+  VoucherCondition,
+  VoucherUsage,
+  User,
+  Order,
+} = require("@/models");
 const throwError = require("@/utils/throwError");
 
 class VoucherService {
@@ -44,6 +50,7 @@ class VoucherService {
 
       return result;
     } catch (error) {
+      console.log(error);
       await transaction.rollback();
       throw error;
     }
@@ -109,12 +116,12 @@ class VoucherService {
             {
               model: User,
               as: "user",
-              attributes: ["id", "email", "name"],
+              attributes: ["id", "email", "username"],
             },
             {
               model: Order,
               as: "order",
-              attributes: ["id", "order_code", "total_amount"],
+              attributes: ["id", "total_amount"],
             },
           ],
         },
@@ -238,18 +245,27 @@ class VoucherService {
 
   // UPDATE STATUS
   async updateVoucherStatus(id, status) {
-    const voucher = await Voucher.findByPk(id);
-    if (!voucher) {
-      throw throwError(404, "Voucher không tồn tại");
-    }
+    try {
+      const voucher = await Voucher.findByPk(id);
+      if (!voucher) throw throwError(404, "Voucher không tồn tại");
 
-    const allowedStatus = ["active", "inactive", "expired"];
-    if (!allowedStatus.includes(status)) {
-      throw throwError(400, "Trạng thái không hợp lệ");
-    }
+      const allowedStatus = ["active", "inactive", "expired"];
+      if (!allowedStatus.includes(status)) {
+        throw throwError(400, "Trạng thái không hợp lệ");
+      }
 
-    await voucher.update({ status });
-    return await this.getVoucherById(id);
+      // Nếu chuyển sang expired => cập nhật end_date = hôm nay
+      let updateData = { status };
+      if (status === "expired") {
+        updateData.end_date = new Date();
+      }
+
+      await voucher.update(updateData);
+      return await this.getVoucherById(id);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   }
 
   // VALIDATE VOUCHER (for checkout)

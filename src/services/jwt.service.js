@@ -9,10 +9,11 @@ const { MAIL_SECRET, MAIL_EXPIRES_IN } = require("../config/auth");
  */
 const generateAccessToken = (
   userId,
+  role,
   jwtSecret = JWT_SECRET,
   expires = JWT_EXPIRES_IN
 ) => {
-  const token = jwt.sign({ userId }, jwtSecret, {
+  const token = jwt.sign({ userId, role }, jwtSecret, {
     expiresIn: expires,
   });
 

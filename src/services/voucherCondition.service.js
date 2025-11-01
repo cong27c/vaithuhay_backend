@@ -1,4 +1,4 @@
-const { VoucherCondition } = require("@/models");
+const { VoucherCondition, Voucher } = require("@/models");
 const throwError = require("@/utils/throwError");
 
 class VoucherConditionService {

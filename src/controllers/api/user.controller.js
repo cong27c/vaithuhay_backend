@@ -22,7 +22,6 @@ const getById = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    console.log("hello");
     const result = await userService.create(req.body);
     return success(res, 201, result);
   } catch (err) {

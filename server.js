@@ -19,6 +19,8 @@ const crawlBlogProducts = require("@/crawler/blogProducts");
 const crawlBlogSystems = require("@/crawler/blogSystem");
 const adminAuthMiddleware = require("@/middlewares/adminAuthMiddleware");
 // const startPreorderCron = require('./cron/preorderCron');
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const port = 3000;
@@ -43,15 +45,15 @@ async function runAllCrawlers() {
     await crawlCollections();
     console.log("✅ Hoàn thành crawl collections");
 
-    // 2. Crawl combos
-    console.log("🎁 2. Đang crawl combos...");
-    await crawlCombos();
-    console.log("✅ Hoàn thành crawl combos");
-
-    // 3. Crawl products
-    console.log("📦 3. Đang crawl products...");
+    // 2. Crawl products
+    console.log("📦 2. Đang crawl products...");
     await crawlProducts();
     console.log("✅ Hoàn thành crawl products");
+
+    //3. Crawl combos
+    console.log("🎁3. Đang crawl combos...");
+    await crawlCombos();
+    console.log("✅ Hoàn thành crawl combos");
 
     // 4. Crawl product details
     console.log("🔍 4. Đang crawl product details...");
@@ -90,15 +92,38 @@ async function runAllCrawlers() {
   }
 }
 
-// Chạy crawl khi khởi động server (tùy chọn)
-// (async () => {
-//   try {
-//     // Bỏ comment dòng dưới nếu muốn tự động crawl khi server start
-//     await productImagesTable();
-//   } catch (err) {
-//     console.error("Lỗi khi crawl:", err);
-//   }
-// })();
+const CRAWL_STATUS_FILE = path.join(__dirname, "crawl_status.json");
+
+async function runAllCrawlersOnce() {
+  try {
+    // Nếu file tồn tại => đã crawl rồi => bỏ qua
+    if (fs.existsSync(CRAWL_STATUS_FILE)) {
+      console.log("⚠️ Dữ liệu đã được crawl trước đó, bỏ qua...");
+      return;
+    }
+
+    console.log("🚀 Bắt đầu crawl lần đầu...");
+    await runAllCrawlers();
+
+    // Ghi lại trạng thái hoàn tất crawl
+    fs.writeFileSync(
+      CRAWL_STATUS_FILE,
+      JSON.stringify(
+        { done: true, timestamp: new Date().toISOString() },
+        null,
+        2
+      )
+    );
+
+    console.log("✅ Crawl hoàn tất và đã lưu trạng thái!");
+  } catch (err) {
+    console.error("❌ Lỗi khi chạy crawler:", err);
+  }
+}
+
+(async () => {
+  await runAllCrawlersOnce();
+})();
 
 app.use("/", optionalAuth); // Cho web routes
 app.use("/", guestSessionMiddleware);

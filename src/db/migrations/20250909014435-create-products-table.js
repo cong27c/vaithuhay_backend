@@ -40,6 +40,12 @@ module.exports = {
         type: Sequelize.DATE,
         allowNull: true,
       },
+      weight: {
+        type: Sequelize.FLOAT, // hoặc DECIMAL(10,2) nếu muốn chính xác tuyệt đối
+        allowNull: true,
+        defaultValue: 0,
+        comment: "Trọng lượng sản phẩm (đơn vị: gram)",
+      },
       brand_id: {
         type: Sequelize.INTEGER,
         allowNull: true,

@@ -239,7 +239,7 @@ const cartService = {
 
       // --- xử lý logic ảnh chính nếu không có variant ---
       const formattedItems = await Promise.all(
-        cartItems.map(async (item) => {
+        cartItems?.map(async (item) => {
           const productName = item.Product?.name || "N/A";
           const variantFullName = item.ProductVariant?.name || "N/A";
 
@@ -742,7 +742,7 @@ const cartService = {
 
       // 3️⃣ Format dữ liệu trả về
       const formatted = comboItems
-        .map((item) => {
+        ?.map((item) => {
           const combo = item.Combo;
           if (!combo) return null;
 

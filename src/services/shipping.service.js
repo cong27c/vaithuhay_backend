@@ -162,7 +162,7 @@ class ShippingService {
         order: [["price", "ASC"]],
       });
 
-      return rates.map((rate) => ({
+      return rates?.map((rate) => ({
         id: rate.method.id,
         name: rate.method.name,
         description: rate.method.description,

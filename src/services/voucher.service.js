@@ -296,7 +296,7 @@ const voucherService = {
     const vouchers = await Voucher.findAll();
 
     // Chuẩn hoá description thành mảng
-    return vouchers.map((v) => {
+    return vouchers?.map((v) => {
       return {
         ...v.toJSON(),
       };

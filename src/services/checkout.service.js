@@ -50,7 +50,7 @@ async function checkoutCustomerService(
     );
 
     // 3. Lưu danh sách sản phẩm
-    const items = cartItems.map((item) => ({
+    const items = cartItems?.map((item) => ({
       order_id: order.id,
       product_id: item.id,
       variant_id: item.variant_id,
@@ -124,7 +124,7 @@ async function checkoutGuestService(
     );
 
     // 3. Lưu danh sách sản phẩm
-    const items = cartItems.map((item) => ({
+    const items = cartItems?.map((item) => ({
       order_id: order.id,
       product_id: item.id,
       quantity: item.quantity,

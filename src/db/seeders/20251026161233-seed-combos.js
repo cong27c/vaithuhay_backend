@@ -14,7 +14,7 @@ module.exports = {
     }
 
     // Tạo mảng update promise
-    const updates = combos.map((combo) => {
+    const updates = combos?.map((combo) => {
       const randomDiscount = Math.floor(Math.random() * (25 - 10 + 1)) + 10; // 10 → 25%
       return queryInterface.sequelize.query(`
         UPDATE combos 

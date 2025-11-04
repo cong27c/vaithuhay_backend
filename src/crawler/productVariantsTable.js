@@ -79,7 +79,7 @@ function generateSKU(productId, variantName) {
   const timestamp = Date.now().toString().slice(-6);
   const nameAbbr = variantName
     .split(" ")
-    .map((word) => word.charAt(0))
+    ?.map((word) => word.charAt(0))
     .join("")
     .toUpperCase();
   return `SKU-${productId}-${nameAbbr}-${timestamp}`;
@@ -296,7 +296,7 @@ async function crawlProductVariants() {
           `.btn.btn-variant, [data-value]`,
           (buttons) => {
             return buttons
-              .map((btn) => {
+              ?.map((btn) => {
                 const value = btn.getAttribute("data-value") || "";
                 const displayValue = btn.querySelector("span")
                   ? btn.querySelector("span").textContent.trim()
@@ -311,7 +311,7 @@ async function crawlProductVariants() {
 
         console.log(
           `📋 Tìm thấy ${attributeValues.length} giá trị:`,
-          attributeValues.map((av) => av.value)
+          attributeValues?.map((av) => av.value)
         );
 
         // CHỈ thêm vào danh sách xử lý nếu có giá trị
@@ -371,7 +371,7 @@ async function crawlProductVariants() {
         });
 
         allAttributeValues.push(
-          ...attributeValueRecords.map((av) => av.dbRecord)
+          ...attributeValueRecords?.map((av) => av.dbRecord)
         );
       }
 
@@ -476,7 +476,7 @@ async function crawlProductVariants() {
                   image: variantInfo.image,
                   attributes: [
                     { attribute: primaryAttribute, value: primaryValue },
-                    ...Object.entries(combination).map(
+                    ...Object.entries(combination)?.map(
                       ([attrName, attrValue]) => {
                         const attribute = otherAttributes.find(
                           (attr) => attr.name === attrName

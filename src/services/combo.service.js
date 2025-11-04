@@ -77,7 +77,7 @@ class ComboService {
       }
 
       // Format từng combo
-      const formattedCombos = combos.map((combo) => {
+      const formattedCombos = combos?.map((combo) => {
         const comboData = combo.toJSON();
 
         // Parse description sang blocks
@@ -93,7 +93,7 @@ class ComboService {
         const subImage =
           comboData.images
             ?.filter((img) => !img.main_image)
-            .map((img) => img.image_url) || [];
+            ?.map((img) => img.image_url) || [];
 
         // Lấy btnLink từ hotspots
         const btnLink = [];
@@ -136,11 +136,11 @@ class ComboService {
 
     const subImage = combo.images
       .filter((img) => !img.main_image && img.image_type === "gallery")
-      .map((img) => img.image_url);
+      ?.map((img) => img.image_url);
 
     let btnLink = [];
     if (mainImageObj && mainImageObj.hotspots) {
-      btnLink = mainImageObj.hotspots.map((hotspot) => {
+      btnLink = mainImageObj.hotspots?.map((hotspot) => {
         const product = hotspot.product;
         const priceBtn = product ? product.price : null;
         const nameBtn = product ? product.name : null;
@@ -186,7 +186,7 @@ class ComboService {
         order: [["created_at", "DESC"]],
       });
 
-      return combos.map((combo) => {
+      return combos?.map((combo) => {
         const mainImageObj = combo.images.find(
           (img) => img.main_image === true
         );
@@ -234,7 +234,7 @@ class ComboService {
         order: [["created_at", "DESC"]],
       });
 
-      const formattedCombos = combos.map((combo) => {
+      const formattedCombos = combos?.map((combo) => {
         const mainImageObj = combo.images.find(
           (img) => img.main_image === true
         );
@@ -305,7 +305,7 @@ class ComboService {
       }
 
       // ✅ Xử lý dữ liệu, thêm original_price và final_price
-      const products = combo.products.map((comboProduct) => {
+      const products = combo.products?.map((comboProduct) => {
         const product = comboProduct.product;
         let originalPrice = parseFloat(product.price) || 0;
         let finalPrice = originalPrice;

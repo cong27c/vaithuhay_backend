@@ -27,7 +27,7 @@ module.exports = {
     const selectedProducts = shuffled.slice(0, discountCount);
 
     // Tạo dữ liệu giảm giá
-    const discounts = selectedProducts.map((p) => {
+    const discounts = selectedProducts?.map((p) => {
       const randomValue = Math.floor(Math.random() * (20 - 5 + 1)) + 5; // random 5–20%
       const status = endDate > now ? "active" : "expired";
 
@@ -56,7 +56,7 @@ module.exports = {
 
     if (!products.length) return;
 
-    const ids = products.map((p) => p.id);
+    const ids = products?.map((p) => p.id);
 
     // 🔹 Xóa discount tương ứng
     await queryInterface.bulkDelete("product_discounts", {

@@ -70,7 +70,7 @@ const getProductsByCollectionSlug = async (slug, page = 1, limit = 8, sort) => {
       });
 
     // 🔹 format kết quả
-    const products = productsData.map((p) => {
+    const products = productsData?.map((p) => {
       const discount = p.discount;
       const mainImage = p.images?.[0];
       const originalPrice = Number(p.price);
@@ -151,7 +151,7 @@ const getByProductsSlug = async (slug) => {
     });
 
     // 3️⃣ Format dữ liệu theo yêu cầu FE
-    const products = productsData.map((p) => {
+    const products = productsData?.map((p) => {
       const originalPrice = Number(p.price);
       const discountPercent = p.discount?.discount_value
         ? Number(p.discount.discount_value)
@@ -190,7 +190,7 @@ const getAllCollections = async () => {
       attributes: ["name", "slug", "thumbnail"],
     });
 
-    const formatted = collections.map((item) => ({
+    const formatted = collections?.map((item) => ({
       image: item.thumbnail,
       desc: item.name,
       link: item.slug ? `/collections/${item.slug}` : "/collections",

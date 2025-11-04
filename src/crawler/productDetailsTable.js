@@ -81,7 +81,7 @@ async function crawlProductDetail() {
           if (srcset) {
             const candidates = srcset
               .split(",")
-              .map((s) => s.trim().split(" ")[0])
+              ?.map((s) => s.trim().split(" ")[0])
               .filter((c) => c && !c.startsWith("data:"));
 
             if (candidates.length > 0) {

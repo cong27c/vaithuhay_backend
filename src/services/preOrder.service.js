@@ -204,7 +204,7 @@ class PreorderService {
       if (!campaigns || campaigns.length === 0) return [];
 
       // 2. Format dữ liệu
-      const formattedCampaigns = campaigns.map((campaign) => {
+      const formattedCampaigns = campaigns?.map((campaign) => {
         const product = campaign.product;
 
         // Lấy image chính (nếu có)
@@ -226,7 +226,7 @@ class PreorderService {
           endDate: formatDate(campaign.end_date),
           status: campaign.status,
           note: campaign.note,
-          tiers: campaign.tiers.map((tier) => ({
+          tiers: campaign.tiers?.map((tier) => ({
             id: tier.id,
             name: tier.name,
             type: tier.type,
@@ -293,7 +293,7 @@ class PreorderService {
 
       if (!campaigns || campaigns.length === 0) return [];
 
-      const formattedCampaigns = campaigns.map((campaign) => {
+      const formattedCampaigns = campaigns?.map((campaign) => {
         const product = campaign.product;
         const mainImage = product?.images?.[0] || null;
 
@@ -683,7 +683,7 @@ class PreorderService {
       );
 
       // tạo tiers
-      const tiersToCreate = tiersData.map((tier) => ({
+      const tiersToCreate = tiersData?.map((tier) => ({
         ...tier,
         campaign_id: campaign.id,
         sold_quantity: 0,

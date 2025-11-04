@@ -157,7 +157,7 @@ class ProductService {
             }
           : null,
 
-        sub_images: subImages.map((img) => ({
+        sub_images: subImages?.map((img) => ({
           id: img.id,
           image_url: img.image_url,
           is_main: false,

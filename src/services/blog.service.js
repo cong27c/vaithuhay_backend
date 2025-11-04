@@ -28,7 +28,7 @@ const getBlogByType = async (type, page = 1, limit = 10) => {
     ]);
 
     // Format lại created_at
-    const formattedBlogs = blogs.map((blog) => ({
+    const formattedBlogs = blogs?.map((blog) => ({
       ...blog,
       created_at: formatDate(blog.created_at),
     }));

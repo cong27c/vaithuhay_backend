@@ -41,7 +41,7 @@ const productService = {
       return {
         name: parsed.name || null,
         image: parsed.img || null,
-        highlightsHtml: (parsed.highlights_html || []).map((item) => ({
+        highlightsHtml: (parsed.highlights_html || [])?.map((item) => ({
           feature: item.feature || "",
           description: item.description || "",
         })),
@@ -72,7 +72,7 @@ const productService = {
         },
       });
 
-      return blogs.map((b) => ({
+      return blogs?.map((b) => ({
         title: b.title,
         contentHtml: parseHtmlToBlocks(b.content_html),
         contentText: b.content_text,
@@ -145,7 +145,7 @@ const productService = {
 
       const subImages = images
         .filter((img) => img.is_main != true)
-        .map((img) => img.image_url);
+        ?.map((img) => img.image_url);
 
       // Base result object
       const result = {
@@ -156,7 +156,7 @@ const productService = {
           name: product.name,
           price: formatCurrency(product.price),
           discountedPrice: formatCurrency(
-            discounts.map((d) => d.discount_value)[0]
+            discounts?.map((d) => d.discount_value)[0]
           ),
           longDescription: detail?.long_description || null,
           origin: detail?.origin || null,
@@ -245,7 +245,7 @@ const productService = {
             isRegistered,
 
             tiers: await Promise.all(
-              preorderCampaign.tiers.map(async (tier) => {
+              preorderCampaign.tiers?.map(async (tier) => {
                 // Đếm số slot đã reserved/confirmed cho tier này
                 const reservedCount = await PreorderSlot.count({
                   where: {
@@ -368,11 +368,11 @@ const productService = {
         success: true,
         data: {
           attributes: sortedAttributes, // ✅ Dùng sortedAttributes thay vì transformedData
-          variants: product.variants.map((v) => ({
+          variants: product.variants?.map((v) => ({
             id: v.id,
             price: formatCurrency(v.price),
             image: v.image_url,
-            attributes: v.attribute_values.map((a) => a.value),
+            attributes: v.attribute_values?.map((a) => a.value),
           })),
         },
       };

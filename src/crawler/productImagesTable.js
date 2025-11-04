@@ -72,7 +72,7 @@ async function productImagesTable() {
               subImages = dataList
                 .split("https://")
                 .filter(Boolean)
-                .map((link) => "https://" + link.trim());
+                ?.map((link) => "https://" + link.trim());
             }
 
             // Nếu không có data-list thì fallback sang <img> (giữ nguyên logic cũ)
@@ -83,7 +83,7 @@ async function productImagesTable() {
                 )
               );
               subImages = subImgEls
-                .map((el) => getImageUrl(el))
+                ?.map((el) => getImageUrl(el))
                 .filter((src) => src);
             }
 

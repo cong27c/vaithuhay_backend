@@ -71,8 +71,8 @@ const deleteRefreshToken = async (refreshToken) => {
   // Nếu được truyền instance Sequelize (có dataValues) hoặc object chứa token/id
   if (typeof refreshToken === "object") {
     // instance có .dataValues, plain object có .token hoặc .id
-    const tokenValue = refreshToken.token ?? refreshToken.dataValues?.token;
-    const idValue = refreshToken.id ?? refreshToken.dataValues?.id;
+    const tokenValue = refreshToken.token ? refreshToken.dataValues?.token;
+    const idValue = refreshToken.id ? refreshToken.dataValues?.id;
 
     if (idValue) {
       // destroy trả về số bản ghi bị xóa

@@ -43,7 +43,7 @@ function parseHtmlToBlocks(html) {
           } else {
             // parse text thường
             value = Array.from(valueTd.childNodes)
-              .map((child) => {
+              ?.map((child) => {
                 if (child.nodeType === 3) {
                   // Text node
                   return child.textContent.replace(/\s+/g, " ").trim();
@@ -172,7 +172,7 @@ function parseHtmlToBlocks(html) {
 
         case "ul": {
           const items = Array.from(node.querySelectorAll("li"))
-            .map((li) => li.textContent.trim())
+            ?.map((li) => li.textContent.trim())
             .filter(Boolean);
           if (items.length > 0) {
             blocks.push({

@@ -62,7 +62,7 @@ class VoucherConditionService {
 
       // Create new conditions
       if (conditions && conditions.length > 0) {
-        const conditionData = conditions.map((condition) => ({
+        const conditionData = conditions?.map((condition) => ({
           ...condition,
           voucher_id: voucherId,
         }));

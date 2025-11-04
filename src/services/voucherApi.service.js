@@ -28,7 +28,7 @@ class VoucherService {
 
       // Create conditions if any
       if (conditions && conditions.length > 0) {
-        const conditionData = conditions.map((condition) => ({
+        const conditionData = conditions?.map((condition) => ({
           ...condition,
           voucher_id: voucher.id,
         }));
@@ -188,7 +188,7 @@ class VoucherService {
         });
 
         if (conditions.length > 0) {
-          const conditionData = conditions.map((condition) => ({
+          const conditionData = conditions?.map((condition) => ({
             ...condition,
             voucher_id: id,
           }));
@@ -351,7 +351,7 @@ class VoucherService {
           break;
 
         case "category":
-          const orderCategories = orderData.items.map(
+          const orderCategories = orderData.items?.map(
             (item) => item.category_id
           );
           if (
@@ -366,7 +366,7 @@ class VoucherService {
           break;
 
         case "product":
-          const orderProducts = orderData.items.map((item) => item.product_id);
+          const orderProducts = orderData.items?.map((item) => item.product_id);
           if (
             !this.checkInclusion(orderProducts, condition.operator, parsedValue)
           ) {

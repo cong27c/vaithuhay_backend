@@ -24,7 +24,7 @@ module.exports = {
       // 🔹 2️⃣ Tạo mảng dữ liệu campaign
       const now = new Date();
 
-      const campaigns = products.map((p) => {
+      const campaigns = products?.map((p) => {
         const startDate = new Date(now);
         const endDate = new Date(now);
         endDate.setDate(endDate.getDate() + 30); // kéo dài 30 ngày

@@ -49,7 +49,7 @@ async function crawlProducts() {
 
           const items = document.querySelectorAll(productElement.product);
 
-          return Array.from(items).map((el) => {
+          return Array.from(items)?.map((el) => {
             let price =
               el.querySelector(productElement.price)?.innerText.trim() ||
               el
@@ -86,7 +86,7 @@ async function crawlProducts() {
         const productsToProcess = products.slice(0, remainingProducts);
 
         // ---- Lưu product vào DB ----
-        const formattedProducts = productsToProcess.map((p) => {
+        const formattedProducts = productsToProcess?.map((p) => {
           const rawPrice = p.price ? p.price.replace(/\D/g, "") : "";
           return {
             name: p.name,
@@ -107,10 +107,10 @@ async function crawlProducts() {
           // ---- Lưu quan hệ product ↔ collection ----
           const dbProducts = await Product.findAll({
             attributes: ["id", "slug"],
-            where: { slug: formattedProducts.map((p) => p.slug) },
+            where: { slug: formattedProducts?.map((p) => p.slug) },
           });
 
-          const relations = dbProducts.map((p) => ({
+          const relations = dbProducts?.map((p) => ({
             product_id: p.id,
             collection_id: col.id,
           }));

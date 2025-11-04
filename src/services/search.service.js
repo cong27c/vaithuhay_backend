@@ -88,7 +88,7 @@ class SearchService {
         distinct: true,
       });
 
-      const items = rows.map((product) => {
+      const items = rows?.map((product) => {
         const productData = product.get({ plain: true });
         return {
           ...productData,
@@ -198,7 +198,7 @@ class SearchService {
       });
 
       // Thêm trường link cho mỗi blog
-      const blogsWithLinks = blogs.rows.map((blog) => {
+      const blogsWithLinks = blogs.rows?.map((blog) => {
         const blogData = blog.toJSON ? blog.toJSON() : blog;
         return {
           ...blogData,
@@ -283,7 +283,7 @@ class SearchService {
         subQuery: false,
       });
 
-      return popularCollections.map(
+      return popularCollections?.map(
         (collection) => `#${collection.name.replace(/\s+/g, "")}`
       );
     } catch (error) {

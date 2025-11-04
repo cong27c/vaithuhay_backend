@@ -20,7 +20,7 @@ const port = 3000;
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://api.covaithuhay.io.vn"], // thêm domain production
+    origin: ["http://localhost:5173", "http://covaithuhay.io.vn"], // thêm domain production
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   })

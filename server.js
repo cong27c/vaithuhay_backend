@@ -8,6 +8,9 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const guestSessionMiddleware = require("@/middlewares/guestSessionMiddleware");
 const optionalAuth = require("@/middlewares/optionalAuth");
+const adminAuthMiddleware = require("@/middlewares/adminAuthMiddleware");
+
+// Crawlers
 const { crawlCollections } = require("@/crawler/collectionsTable");
 const { crawlCombos } = require("@/crawler/combo");
 const { crawlProducts } = require("@/crawler/productsTable");
@@ -17,127 +20,145 @@ const productImagesTable = require("@/crawler/productImagesTable");
 const { crawlProductVariants } = require("@/crawler/productVariantsTable");
 const crawlBlogProducts = require("@/crawler/blogProducts");
 const crawlBlogSystems = require("@/crawler/blogSystem");
-const adminAuthMiddleware = require("@/middlewares/adminAuthMiddleware");
-// const startPreorderCron = require('./cron/preorderCron');
-const fs = require("fs");
-const path = require("path");
+
+// Sequelize
+const { sequelize } = require("@/models");
+const { v4: uuidv4 } = require("uuid");
+const { QueryTypes } = require("sequelize");
 
 const app = express();
 const port = 3000;
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // cho phép FE gọi
+    origin: "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    credentials: true, // nếu dùng cookie / token
+    credentials: true,
   })
 );
 app.use(express.static("public"));
 app.use(express.json());
 app.use(cookieParser());
 
+/**
+ * Hàm chạy tất cả crawlers theo thứ tự
+ */
 async function runAllCrawlers() {
   console.log("🚀 Bắt đầu crawl tất cả dữ liệu theo thứ tự...");
-
   try {
-    // 1. Crawl collections
-    console.log("📁 1. Đang crawl collections...");
+    console.log("📁 1. Crawl collections...");
     await crawlCollections();
     console.log("✅ Hoàn thành crawl collections");
 
-    // 2. Crawl products
-    console.log("📦 2. Đang crawl products...");
+    console.log("📦 2. Crawl products...");
     await crawlProducts();
     console.log("✅ Hoàn thành crawl products");
 
-    //3. Crawl combos
-    console.log("🎁3. Đang crawl combos...");
+    console.log("🎁 3. Crawl combos...");
     await crawlCombos();
     console.log("✅ Hoàn thành crawl combos");
 
-    // 4. Crawl product details
-    console.log("🔍 4. Đang crawl product details...");
+    console.log("🔍 4. Crawl product details...");
     await crawlProductDetail();
     console.log("✅ Hoàn thành crawl product details");
 
-    // 5. Crawl product discounts (bạn cần import hàm này)
-    console.log("💰 5. Đang crawl product discounts...");
+    console.log("💰 5. Crawl product discounts...");
     await productDiscountsTable();
-    console.log("⏭️  Bỏ qua product discounts - chưa được import");
+    console.log("✅ Hoàn thành product discounts");
 
-    // 6. Crawl product images
-    console.log("🖼️  6. Đang crawl product images...");
+    console.log("🖼️ 6. Crawl product images...");
     await productImagesTable();
     console.log("✅ Hoàn thành crawl product images");
 
-    // 7. Crawl product variants
-    console.log("🎨 7. Đang crawl product variants...");
+    console.log("🎨 7. Crawl product variants...");
     await crawlProductVariants();
     console.log("✅ Hoàn thành crawl product variants");
 
-    // 8. Crawl blog products
-    console.log("📝 8. Đang crawl blog products...");
+    console.log("📝 8. Crawl blog products...");
     await crawlBlogProducts();
     console.log("✅ Hoàn thành crawl blog products");
 
-    // 9. Crawl blog systems
-    console.log("⚙️  9. Đang crawl blog systems...");
+    console.log("⚙️ 9. Crawl blog systems...");
     await crawlBlogSystems();
     console.log("✅ Hoàn thành crawl blog systems");
 
-    console.log("🎉 Đã hoàn thành tất cả crawl theo đúng thứ tự!");
+    console.log("🎉 Hoàn thành tất cả crawlers!");
   } catch (error) {
     console.error("❌ Lỗi trong quá trình crawl:", error);
     throw error;
   }
 }
 
-const CRAWL_STATUS_FILE = path.join(__dirname, "crawl_status.json");
+/**
+ * Hàm chạy crawler 1 lần duy nhất, lưu trạng thái vào database
+ */
+async function runAllCrawlersOnceDB() {
+  const crawlerName = "all_crawlers";
+  const t = await sequelize.transaction();
 
-// async function runAllCrawlersOnce() {
-//   try {
-//     // Nếu file tồn tại => đã crawl rồi => bỏ qua
-//     if (fs.existsSync(CRAWL_STATUS_FILE)) {
-//       console.log("⚠️ Dữ liệu đã được crawl trước đó, bỏ qua...");
-//       return;
-//     }
+  try {
+    // Lock record nếu đã tồn tại để tránh race condition
+    const record = await sequelize.query(
+      `SELECT * FROM crawler_status WHERE crawler_name = :crawlerName FOR UPDATE`,
+      {
+        replacements: { crawlerName },
+        type: QueryTypes.SELECT,
+        transaction: t,
+      }
+    );
 
-//     console.log("🚀 Bắt đầu crawl lần đầu...");
-//     await runAllCrawlers();
+    if (record.length > 0 && record[0].status === "done") {
+      console.log("⚠️ Crawler đã chạy trước đó, bỏ qua...");
+      await t.commit();
+      return;
+    }
 
-//     // Ghi lại trạng thái hoàn tất crawl
-//     fs.writeFileSync(
-//       CRAWL_STATUS_FILE,
-//       JSON.stringify(
-//         { done: true, timestamp: new Date().toISOString() },
-//         null,
-//         2
-//       )
-//     );
+    // Thêm record hoặc update status = 'running'
+    if (record.length === 0) {
+      await sequelize.query(
+        `INSERT INTO crawler_status (id, crawler_name, status) VALUES (:id, :crawlerName, 'running')`,
+        { replacements: { id: uuidv4(), crawlerName }, transaction: t }
+      );
+    } else {
+      await sequelize.query(
+        `UPDATE crawler_status SET status='running', updatedAt=NOW() WHERE crawler_name=:crawlerName`,
+        { replacements: { crawlerName }, transaction: t }
+      );
+    }
 
-//     console.log("✅ Crawl hoàn tất và đã lưu trạng thái!");
-//   } catch (err) {
-//     console.error("❌ Lỗi khi chạy crawler:", err);
-//   }
-// }
+    await t.commit();
 
-// (async () => {
-//   await runAllCrawlersOnce();
-// })();
+    // Thực sự chạy crawler
+    await runAllCrawlers();
 
-app.use("/", optionalAuth); // Cho web routes
+    // Cập nhật trạng thái thành 'done'
+    await sequelize.query(
+      `UPDATE crawler_status SET status='done', last_run_at=NOW(), updatedAt=NOW() WHERE crawler_name=:crawlerName`,
+      { replacements: { crawlerName } }
+    );
+
+    console.log("✅ Crawler hoàn tất và lưu trạng thái vào DB!");
+  } catch (err) {
+    await t.rollback();
+    console.error("❌ Lỗi khi chạy crawler:", err);
+  }
+}
+
+// Chạy crawler 1 lần khi app start
+(async () => {
+  await runAllCrawlersOnceDB();
+})();
+
+// Middlewares
+app.use("/", optionalAuth);
 app.use("/", guestSessionMiddleware);
+app.use("/api/v1", adminAuthMiddleware);
 
-app.use("/api/v1", adminAuthMiddleware); // Chỉ auth, không guest session
-
+// Routes
 app.use("/", webRouter);
 app.use("/api/v1", apiRouter);
-//startPreorderCron();
 
+// Start server
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
-
-// thứ tự crawl : crawlCollections ,crawlCombos, crawlProducts , crawlProductDetail ,productDiscountsTable, productImagesTable, crawlProductVariants, crawlBlogProducts, crawlBlogSystems
-// scroll top trong blogs khi chuyển trang
-// tạo hàm render ra sesson_id, id sử dung uuidv4

@@ -4,10 +4,9 @@ const { error } = require("@/utils/response");
 
 const adminAuthMiddleware = async (req, res, next) => {
   try {
-    // Skip auth cho public admin routes (login, refresh token)
     if (
-      req.path === "/admin/auth/login" ||
-      req.path === "/admin/auth/refresh"
+      req.originalUrl === "/api/v1/auth/login" ||
+      req.originalUrl === "/api/v1/auth/refresh"
     ) {
       return next();
     }
@@ -36,6 +35,7 @@ const adminAuthMiddleware = async (req, res, next) => {
       id: decoded.userId,
       role: decoded.role,
     };
+    console.log("hello");
 
     next();
   } catch (err) {

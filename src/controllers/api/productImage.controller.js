@@ -11,7 +11,11 @@ const throwError = require("@/utils/throwError");
 const uploadProductImage = async (req, res) => {
   try {
     const { product_id, is_main } = req.body;
-    if (!product_id) throwError(400, "Thiếu product_id");
+
+    // Validate input
+    if (!product_id) {
+      return error(res, 400, "Thiếu product_id");
+    }
 
     const image = await createProductImage(
       product_id,
@@ -19,10 +23,13 @@ const uploadProductImage = async (req, res) => {
       is_main === "true"
     );
 
-    return success(res, "Upload ảnh sản phẩm thành công", image);
+    return success(res, 200, {
+      message: "Upload ảnh sản phẩm thành công",
+      data: image,
+    });
   } catch (err) {
     console.log(err);
-    return error(res, err);
+    return error(res, err.status || 500, err.message);
   }
 };
 
@@ -34,13 +41,20 @@ const uploadByProduct = async (req, res) => {
     const { productId } = req.params;
     const isMain = req.body.is_main === "true" || req.body.is_main === true;
 
-    if (!req.file) throwError(400, "Thiếu file upload");
+    // Validate input
+    if (!req.file) {
+      return error(res, 400, "Thiếu file upload");
+    }
 
     const image = await uploadImageForProduct(productId, req.file, isMain);
-    return success(res, "Upload ảnh thành công", image);
+
+    return success(res, 200, {
+      message: "Upload ảnh thành công",
+      data: image,
+    });
   } catch (err) {
     console.log(err);
-    return error(res, err);
+    return error(res, err.status || 500, err.message);
   }
 };
 
@@ -48,32 +62,44 @@ const uploadByProduct = async (req, res) => {
 const deleteAllByProduct = async (req, res) => {
   try {
     const { productId } = req.params;
+
     await deleteImagesByProduct(productId);
-    return success(res, `Đã xoá toàn bộ ảnh của sản phẩm ${productId}`);
+
+    return success(res, 200, {
+      message: `Đã xoá toàn bộ ảnh của sản phẩm ${productId}`,
+    });
   } catch (err) {
     console.log(err);
-    return error(res, err);
+    return error(res, err.status || 500, err.message);
   }
 };
 
 const deleteSingleByProduct = async (req, res) => {
   try {
     const { productId, imageId } = req.params;
+
     await deleteImageById(productId, imageId);
-    return success(res, `Đã xoá ảnh ${imageId} của sản phẩm ${productId}`);
+
+    return success(res, 200, {
+      message: `Đã xoá ảnh ${imageId} của sản phẩm ${productId}`,
+    });
   } catch (err) {
     console.log(err);
-    return error(res, err);
+    return error(res, err.status || 500, err.message);
   }
 };
 
 const removeProductImage = async (req, res) => {
   try {
     const { id } = req.params;
+
     await deleteProductImage(id);
-    return success(res, "Xóa ảnh thành công");
+
+    return success(res, 200, {
+      message: "Xóa ảnh thành công",
+    });
   } catch (err) {
-    return error(res, err);
+    return error(res, err.status || 500, err.message);
   }
 };
 

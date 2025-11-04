@@ -2,7 +2,7 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn("Products", "weight", {
+    await queryInterface.addColumn("products", "weight", {
       type: Sequelize.FLOAT, // hoặc DECIMAL(10,2) nếu muốn chính xác tuyệt đối
       allowNull: true,
       defaultValue: 0,
@@ -11,6 +11,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.removeColumn("Products", "weight");
+    await queryInterface.removeColumn("products", "weight");
   },
 };

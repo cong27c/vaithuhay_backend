@@ -18,12 +18,12 @@ const uploadImageToCloudinary = (file) => {
     streamifier.createReadStream(file.buffer).pipe(uploadStream);
   });
 };
+
 // 🖼️ Upload ảnh cho sản phẩm
 const uploadImageForProduct = async (productId, file, isMain) => {
   try {
     console.log("📤 Uploading to Cloudinary from buffer...");
 
-    // Upload từ buffer
     const uploadResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
@@ -36,11 +36,18 @@ const uploadImageForProduct = async (productId, file, isMain) => {
         }
       );
 
-      // Ghi buffer vào stream
       uploadStream.end(file.buffer);
     });
 
     console.log("✅ Cloudinary upload success:", uploadResult.secure_url);
+
+    // Nếu đây là ảnh chính, set tất cả ảnh khác thành không phải ảnh chính
+    if (isMain) {
+      await ProductImage.update(
+        { is_main: false },
+        { where: { product_id: productId } }
+      );
+    }
 
     const newImage = await ProductImage.create({
       product_id: productId,
@@ -54,6 +61,7 @@ const uploadImageForProduct = async (productId, file, isMain) => {
     throw error;
   }
 };
+
 // 🗑️ Xoá tất cả ảnh theo productId
 const deleteImagesByProduct = async (productId) => {
   const images = await ProductImage.findAll({
@@ -76,7 +84,9 @@ const deleteImageById = async (productId, imageId) => {
     where: { id: imageId, product_id: productId },
   });
 
-  if (!image) throwError(404, "Ảnh không tồn tại");
+  if (!image) {
+    throw throwError(404, "Ảnh không tồn tại");
+  }
 
   const publicId = extractPublicId(image.image_url);
   if (publicId) {
@@ -86,21 +96,34 @@ const deleteImageById = async (productId, imageId) => {
   await ProductImage.destroy({ where: { id: imageId } });
 };
 
-// 🔧 Hàm tiện ích để lấy public_id từ URL Cloudinary
+// 🔧 Hàm tiện ích để lấy public_id từ URL Cloudinary (nhất quán)
 const extractPublicId = (url) => {
   try {
     const parts = url.split("/");
+    const folder = parts[parts.length - 2];
     const fileName = parts[parts.length - 1];
-    return fileName.split(".")[0]; // lấy phần public_id trước .jpg
+    const publicId = fileName.split(".")[0];
+    return `${folder}/${publicId}`;
   } catch {
     return null;
   }
 };
+
 // 🧩 Tạo ảnh sản phẩm mới
 const createProductImage = async (productId, file, isMain = false) => {
-  if (!file) throwError(400, "Thiếu file upload");
+  if (!file) {
+    throw throwError(400, "Thiếu file upload");
+  }
 
   const result = await uploadImageToCloudinary(file);
+
+  // Nếu đây là ảnh chính, set tất cả ảnh khác thành không phải ảnh chính
+  if (isMain) {
+    await ProductImage.update(
+      { is_main: false },
+      { where: { product_id: productId } }
+    );
+  }
 
   const image = await ProductImage.create({
     product_id: productId,
@@ -114,16 +137,15 @@ const createProductImage = async (productId, file, isMain = false) => {
 // ❌ Xóa ảnh Cloudinary + database
 const deleteProductImage = async (imageId) => {
   const image = await ProductImage.findByPk(imageId);
-  if (!image) throwError(404, "Ảnh không tồn tại");
+  if (!image) {
+    throw throwError(404, "Ảnh không tồn tại");
+  }
 
-  // Lấy public_id từ URL Cloudinary (ví dụ: products/abc123)
-  const publicId = image.image_url
-    .split("/")
-    .slice(-2)
-    .join("/")
-    .replace(/\.[^/.]+$/, "");
+  const publicId = extractPublicId(image.image_url);
 
-  await cloudinary.uploader.destroy(publicId);
+  if (publicId) {
+    await cloudinary.uploader.destroy(publicId);
+  }
 
   await image.destroy();
   return true;

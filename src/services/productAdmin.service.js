@@ -43,18 +43,6 @@ class ProductService {
             attributes: ["id", "image_url", "is_main"],
           },
           {
-            model: ProductDiscount,
-            as: "discount",
-            attributes: [
-              "id",
-              "discount_type",
-              "discount_value",
-              "start_date",
-              "end_date",
-              "status",
-            ],
-          },
-          {
             model: ProductVariant,
             as: "variants",
             attributes: ["id", "name", "sku", "price", "stock", "image_url"],
@@ -104,18 +92,6 @@ class ProductService {
             attributes: ["id", "image_url", "is_main"],
           },
           {
-            model: ProductDiscount,
-            as: "discount",
-            attributes: [
-              "id",
-              "discount_type",
-              "discount_value",
-              "start_date",
-              "end_date",
-              "status",
-            ],
-          },
-          {
             model: ProductVariant,
             as: "variants",
             include: ["attribute_values"],
@@ -132,7 +108,93 @@ class ProductService {
         throw throwError("Product not found", 404);
       }
 
-      return product;
+      // 🎯 TRANSFORM DATA ĐỂ ĐỒNG BỘ VỚI FE
+      const productData = product.toJSON();
+
+      // Tách ảnh chính và ảnh phụ
+      const mainImage = productData.images?.find((img) => img.is_main);
+      const subImages = productData.images?.filter((img) => !img.is_main) || [];
+
+      // Format highlights nếu là string (JSON)
+      let highlights = productData.detail?.highlights;
+      if (typeof highlights === "string") {
+        try {
+          highlights = JSON.parse(highlights);
+        } catch {
+          highlights = { img: "", highlights_html: [] };
+        }
+      }
+
+      // Transform data theo cấu trúc FE mong đợi
+      const transformedProduct = {
+        id: productData.id,
+        name: productData.name,
+        slug: productData.slug,
+        price: parseFloat(productData.price) || 0,
+        stock: parseInt(productData.stock) || 0,
+        weight: parseFloat(productData.weight) || 0,
+        release_date: productData.release_date,
+        status: productData.status,
+
+        // Detail info - ĐỒNG BỘ VỚI FE
+        detail: {
+          id: productData.detail?.id,
+          title: productData.detail?.title || productData.name,
+          long_description: productData.detail?.long_description || "",
+          specifications: productData.detail?.specifications || "",
+          highlights: highlights || { img: "", highlights_html: [] },
+          care_instructions: productData.detail?.care_instructions || "",
+          origin: productData.detail?.origin || "",
+          material: productData.detail?.material || "",
+        },
+
+        // Images - ĐỒNG BỘ VỚI FE
+        main_image: mainImage
+          ? {
+              id: mainImage.id,
+              image_url: mainImage.image_url,
+              is_main: true,
+            }
+          : null,
+
+        sub_images: subImages.map((img) => ({
+          id: img.id,
+          image_url: img.image_url,
+          is_main: false,
+        })),
+
+        // Variants - ĐỒNG BỘ VỚI FE
+        variants:
+          productData.variants?.map((variant) => ({
+            id: variant.id,
+            sku: variant.sku,
+            price: parseFloat(variant.price) || 0,
+            stock: parseInt(variant.stock) || 0,
+            weight: parseFloat(variant.weight) || 0,
+            status: variant.status,
+            attribute_values:
+              variant.attribute_values?.map((attr) => ({
+                id: attr.id,
+                value: attr.value,
+                attribute_id: attr.attribute_id,
+                attribute_name: attr.attribute?.name,
+              })) || [],
+          })) || [],
+
+        // Collections
+        collections:
+          productData.collections?.map((collection) => ({
+            id: collection.id,
+            name: collection.name,
+            slug: collection.slug,
+          })) || [],
+
+        // Metadata
+        created_at: productData.created_at,
+        updated_at: productData.updated_at,
+      };
+
+      return transformedProduct;
     } catch (error) {
       if (error.status === 404) throw error;
       throw throwError("Failed to retrieve product", 500, error);
@@ -147,7 +209,6 @@ class ProductService {
       const {
         name,
         slug,
-        description,
         price,
         stock,
         weight,
@@ -155,17 +216,15 @@ class ProductService {
         status,
         brand_id,
         detail,
-        images,
-        discount,
-        variants,
       } = productData;
 
-      // Create main product
+      console.log("Creating product with:", { name, slug, price, detail }); // Debug
+
+      // Create main product - SỬA: không truyền description
       const product = await Product.create(
         {
           name,
           slug: slug || this.generateSlug(name),
-          description,
           price,
           stock,
           weight,
@@ -181,49 +240,16 @@ class ProductService {
         await ProductDetail.create(
           {
             product_id: product.id,
-            ...detail,
+            title: detail.title,
+            long_description: detail.long_description,
+            specifications: detail.specifications,
+            highlights: detail.highlights, // ✅ Giữ nguyên structure
+            care_instructions: detail.care_instructions,
+            origin: detail.origin,
+            material: detail.material,
           },
           { transaction }
         );
-      }
-
-      // Create product images if provided
-      if (images && images.length > 0) {
-        const imagePromises = images.map((image) =>
-          ProductImage.create(
-            {
-              product_id: product.id,
-              ...image,
-            },
-            { transaction }
-          )
-        );
-        await Promise.all(imagePromises);
-      }
-
-      // Create discount if provided
-      if (discount) {
-        await ProductDiscount.create(
-          {
-            product_id: product.id,
-            ...discount,
-          },
-          { transaction }
-        );
-      }
-
-      // Create variants if provided
-      if (variants && variants.length > 0) {
-        const variantPromises = variants.map((variant) =>
-          ProductVariant.create(
-            {
-              product_id: product.id,
-              ...variant,
-            },
-            { transaction }
-          )
-        );
-        await Promise.all(variantPromises);
       }
 
       await transaction.commit();
@@ -232,6 +258,7 @@ class ProductService {
       return await this.getProductById(product.id);
     } catch (error) {
       await transaction.rollback();
+      console.log("Error creating product:", error);
 
       if (error.name === "SequelizeUniqueConstraintError") {
         throw throwError("Product slug already exists", 400, error);
@@ -250,8 +277,10 @@ class ProductService {
         throw throwError("Product not found", 404);
       }
 
-      const { detail, images, discount, variants, ...productUpdateData } =
-        productData;
+      const { detail, ...productUpdateData } = productData;
+
+      console.log("Updating product with:", productUpdateData); // Debug
+      console.log("Detail data:", detail); // Debug
 
       // Update main product
       await product.update(productUpdateData, { transaction });
@@ -261,11 +290,32 @@ class ProductService {
         const existingDetail = await ProductDetail.findOne({
           where: { product_id: id },
         });
+
         if (existingDetail) {
-          await existingDetail.update(detail, { transaction });
+          await existingDetail.update(
+            {
+              title: detail.title,
+              long_description: detail.long_description,
+              specifications: detail.specifications,
+              highlights: detail.highlights,
+              care_instructions: detail.care_instructions,
+              origin: detail.origin,
+              material: detail.material,
+            },
+            { transaction }
+          );
         } else {
           await ProductDetail.create(
-            { product_id: id, ...detail },
+            {
+              product_id: id,
+              title: detail.title,
+              long_description: detail.long_description,
+              specifications: detail.specifications,
+              highlights: detail.highlights,
+              care_instructions: detail.care_instructions,
+              origin: detail.origin,
+              material: detail.material,
+            },
             { transaction }
           );
         }
@@ -294,7 +344,6 @@ class ProductService {
       await Promise.all([
         ProductDetail.destroy({ where: { product_id: id }, transaction }),
         ProductImage.destroy({ where: { product_id: id }, transaction }),
-        ProductDiscount.destroy({ where: { product_id: id }, transaction }),
         ProductVariant.destroy({ where: { product_id: id }, transaction }),
       ]);
 

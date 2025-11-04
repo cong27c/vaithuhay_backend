@@ -25,13 +25,16 @@ const getProductById = async (req, res) => {
     const product = await productService.getProductById(id);
     return success(res, 200, product, "Product retrieved successfully");
   } catch (err) {
+    console.log(err);
     return error(res, err.status || 500, err.message, err.errors);
   }
 };
 
 const createProduct = async (req, res) => {
   try {
+    console.log("createProduct");
     const productData = req.body;
+    console.log("productData", req.body);
     const newProduct = await productService.createProduct(productData);
     return success(res, 201, newProduct, "Product created successfully");
   } catch (err) {

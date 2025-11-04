@@ -94,36 +94,36 @@ async function runAllCrawlers() {
 
 const CRAWL_STATUS_FILE = path.join(__dirname, "crawl_status.json");
 
-async function runAllCrawlersOnce() {
-  try {
-    // Nếu file tồn tại => đã crawl rồi => bỏ qua
-    if (fs.existsSync(CRAWL_STATUS_FILE)) {
-      console.log("⚠️ Dữ liệu đã được crawl trước đó, bỏ qua...");
-      return;
-    }
+// async function runAllCrawlersOnce() {
+//   try {
+//     // Nếu file tồn tại => đã crawl rồi => bỏ qua
+//     if (fs.existsSync(CRAWL_STATUS_FILE)) {
+//       console.log("⚠️ Dữ liệu đã được crawl trước đó, bỏ qua...");
+//       return;
+//     }
 
-    console.log("🚀 Bắt đầu crawl lần đầu...");
-    await runAllCrawlers();
+//     console.log("🚀 Bắt đầu crawl lần đầu...");
+//     await runAllCrawlers();
 
-    // Ghi lại trạng thái hoàn tất crawl
-    fs.writeFileSync(
-      CRAWL_STATUS_FILE,
-      JSON.stringify(
-        { done: true, timestamp: new Date().toISOString() },
-        null,
-        2
-      )
-    );
+//     // Ghi lại trạng thái hoàn tất crawl
+//     fs.writeFileSync(
+//       CRAWL_STATUS_FILE,
+//       JSON.stringify(
+//         { done: true, timestamp: new Date().toISOString() },
+//         null,
+//         2
+//       )
+//     );
 
-    console.log("✅ Crawl hoàn tất và đã lưu trạng thái!");
-  } catch (err) {
-    console.error("❌ Lỗi khi chạy crawler:", err);
-  }
-}
+//     console.log("✅ Crawl hoàn tất và đã lưu trạng thái!");
+//   } catch (err) {
+//     console.error("❌ Lỗi khi chạy crawler:", err);
+//   }
+// }
 
-(async () => {
-  await runAllCrawlersOnce();
-})();
+// (async () => {
+//   await runAllCrawlersOnce();
+// })();
 
 app.use("/", optionalAuth); // Cho web routes
 app.use("/", guestSessionMiddleware);

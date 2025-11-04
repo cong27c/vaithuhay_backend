@@ -68,20 +68,18 @@ const findValidRefreshToken = async (token) => {
 const deleteRefreshToken = async (refreshToken) => {
   if (!refreshToken) return 0;
 
-  // Nếu được truyền instance Sequelize (có dataValues) hoặc object chứa token/id
+  // Nếu được truyền instance Sequelize hoặc plain object
   if (typeof refreshToken === "object") {
-    // instance có .dataValues, plain object có .token hoặc .id
-    const tokenValue = refreshToken.token ? refreshToken.dataValues?.token;
-    const idValue = refreshToken.id ? refreshToken.dataValues?.id;
+    const tokenValue =
+      refreshToken.dataValues?.token || refreshToken.token || null;
+    const idValue = refreshToken.dataValues?.id || refreshToken.id || null;
 
     if (idValue) {
-      // destroy trả về số bản ghi bị xóa
       return await RefreshToken.destroy({ where: { id: idValue } });
     }
     if (tokenValue) {
       return await RefreshToken.destroy({ where: { token: tokenValue } });
     }
-    // nếu object mà không có id/token thì trả về 0
     return 0;
   }
 

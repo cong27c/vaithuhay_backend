@@ -40,53 +40,117 @@ app.use(express.static("public"));
 app.use(express.json());
 app.use(cookieParser());
 
+// Retry utility
+async function retryOperation(operation, maxRetries = 3, initialDelay = 5000) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 1) {
+        console.log(`🔄 Thử lại lần ${attempt}/${maxRetries}...`);
+      }
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < maxRetries) {
+        const delay = initialDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(
+          `⏳ Chờ ${delay / 1000}s trước khi thử lại... (Lỗi: ${error.message})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  console.error(`❌ Thất bại sau ${maxRetries} lần thử:`, lastError.message);
+  throw lastError;
+}
+
+function withTimeout(operation, timeoutMs = 60000) {
+  return Promise.race([
+    operation(),
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Operation timeout after ${timeoutMs}ms`)),
+        timeoutMs
+      )
+    ),
+  ]);
+}
+
 /**
- * Hàm chạy tất cả crawlers theo thứ tự
+ * Hàm chạy tất cả crawlers theo thứ tự với retry mechanism
  */
 async function runAllCrawlers() {
   console.log("🚀 Bắt đầu crawl tất cả dữ liệu theo thứ tự...");
-  try {
-    console.log("📁 1. Crawl collections...");
-    await crawlCollections();
-    console.log("✅ Hoàn thành crawl collections");
 
-    console.log("📦 2. Crawl products...");
-    await crawlProducts();
-    console.log("✅ Hoàn thành crawl products");
+  const crawlers = [
+    { name: "collections", fn: crawlCollections, retry: true, timeout: 120000 },
+    { name: "products", fn: crawlProducts, retry: true, timeout: 300000 },
+    { name: "combos", fn: crawlCombos, retry: true, timeout: 180000 },
+    {
+      name: "product details",
+      fn: crawlProductDetail,
+      retry: true,
+      timeout: 240000,
+    },
+    {
+      name: "product discounts",
+      fn: productDiscountsTable,
+      retry: true,
+      timeout: 180000,
+    },
+    {
+      name: "product images",
+      fn: productImagesTable,
+      retry: true,
+      timeout: 240000,
+    },
+    {
+      name: "product variants",
+      fn: crawlProductVariants,
+      retry: true,
+      timeout: 180000,
+    },
+    {
+      name: "blog products",
+      fn: crawlBlogProducts,
+      retry: true,
+      timeout: 120000,
+    },
+    {
+      name: "blog systems",
+      fn: crawlBlogSystems,
+      retry: true,
+      timeout: 120000,
+    },
+  ];
 
-    console.log("🎁 3. Crawl combos...");
-    await crawlCombos();
-    console.log("✅ Hoàn thành crawl combos");
+  for (const [index, crawler] of crawlers.entries()) {
+    console.log(`\n📁 ${index + 1}. Crawl ${crawler.name}...`);
 
-    console.log("🔍 4. Crawl product details...");
-    await crawlProductDetail();
-    console.log("✅ Hoàn thành crawl product details");
-
-    console.log("💰 5. Crawl product discounts...");
-    await productDiscountsTable();
-    console.log("✅ Hoàn thành product discounts");
-
-    console.log("🖼️ 6. Crawl product images...");
-    await productImagesTable();
-    console.log("✅ Hoàn thành crawl product images");
-
-    console.log("🎨 7. Crawl product variants...");
-    await crawlProductVariants();
-    console.log("✅ Hoàn thành crawl product variants");
-
-    console.log("📝 8. Crawl blog products...");
-    await crawlBlogProducts();
-    console.log("✅ Hoàn thành crawl blog products");
-
-    console.log("⚙️ 9. Crawl blog systems...");
-    await crawlBlogSystems();
-    console.log("✅ Hoàn thành crawl blog systems");
-
-    console.log("🎉 Hoàn thành tất cả crawlers!");
-  } catch (error) {
-    console.error("❌ Lỗi trong quá trình crawl:", error);
-    // Không throw, để server không crash
+    try {
+      if (crawler.retry) {
+        await retryOperation(
+          () => withTimeout(crawler.fn, crawler.timeout),
+          3, // maxRetries
+          5000 // initialDelay
+        );
+      } else {
+        await withTimeout(crawler.fn, crawler.timeout);
+      }
+      console.log(`✅ Hoàn thành crawl ${crawler.name}`);
+    } catch (error) {
+      console.error(`❌ Lỗi nghiêm trọng với ${crawler.name}:`, error.message);
+      console.log(
+        `⏩ Bỏ qua ${crawler.name} và tiếp tục với crawler tiếp theo...`
+      );
+      // Không throw, tiếp tục với crawler tiếp theo
+    }
   }
+
+  console.log("🎉 Hoàn thành tất cả crawlers!");
 }
 
 /**
@@ -130,25 +194,39 @@ async function runAllCrawlersOnceDB() {
     return;
   }
 
-  // Chạy crawler ngoài transaction
+  // Chạy crawler ngoài transaction với timeout tổng
   try {
-    await runAllCrawlers();
+    await withTimeout(async () => {
+      await runAllCrawlers();
 
-    await sequelize.query(
-      `UPDATE crawler_status SET status='done', last_run_at=NOW(), updatedAt=NOW() WHERE crawler_name=:crawlerName`,
-      { replacements: { crawlerName } }
-    );
+      await sequelize.query(
+        `UPDATE crawler_status SET status='done', last_run_at=NOW(), updatedAt=NOW() WHERE crawler_name=:crawlerName`,
+        { replacements: { crawlerName } }
+      );
 
-    console.log("✅ Crawler hoàn tất và lưu trạng thái vào DB!");
+      console.log("✅ Crawler hoàn tất và lưu trạng thái vào DB!");
+    }, 30 * 60 * 1000); // 30 minutes timeout cho toàn bộ process
   } catch (err) {
     console.error("❌ Lỗi khi chạy crawler:", err);
-    // Không throw → server vẫn chạy bình thường
+
+    // Cập nhật trạng thái failed
+    try {
+      await sequelize.query(
+        `UPDATE crawler_status SET status='failed', last_error=:error, updatedAt=NOW() WHERE crawler_name=:crawlerName`,
+        { replacements: { crawlerName, error: err.message.substring(0, 1000) } }
+      );
+      console.log("📝 Đã lưu trạng thái failed vào database");
+    } catch (dbError) {
+      console.error("❌ Không thể lưu trạng thái failed:", dbError);
+    }
   }
 }
 
 // Chạy crawler 1 lần khi app start
 (async () => {
+  console.log("🔧 Khởi động crawler service...");
   await runAllCrawlersOnceDB();
+  console.log("🔧 Crawler service đã hoàn thành khởi động");
 })();
 
 // Middlewares
@@ -160,7 +238,38 @@ app.use("/api/v1", adminAuthMiddleware);
 app.use("/", webRouter);
 app.use("/api/v1", apiRouter);
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Server is running",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Crawler status endpoint
+app.get("/crawler-status", async (req, res) => {
+  try {
+    const status = await sequelize.query(
+      `SELECT * FROM crawler_status WHERE crawler_name = 'all_crawlers'`,
+      { type: QueryTypes.SELECT }
+    );
+
+    res.json({
+      success: true,
+      data: status[0] || null,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 // Start server
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`🚀 Server đang chạy trên port ${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/health`);
+  console.log(`🔍 Crawler status: http://localhost:${port}/crawler-status`);
 });

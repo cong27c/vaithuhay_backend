@@ -85,7 +85,7 @@ async function runAllCrawlers() {
     console.log("🎉 Hoàn thành tất cả crawlers!");
   } catch (error) {
     console.error("❌ Lỗi trong quá trình crawl:", error);
-    throw error;
+    // Không throw, để server không crash
   }
 }
 
@@ -94,17 +94,15 @@ async function runAllCrawlers() {
  */
 async function runAllCrawlersOnceDB() {
   const crawlerName = "all_crawlers";
-  const t = await sequelize.transaction();
 
+  // Transaction chỉ để lock + set 'running'
+  let t;
   try {
-    // Lock record nếu đã tồn tại để tránh race condition
+    t = await sequelize.transaction();
+
     const record = await sequelize.query(
       `SELECT * FROM crawler_status WHERE crawler_name = :crawlerName FOR UPDATE`,
-      {
-        replacements: { crawlerName },
-        type: QueryTypes.SELECT,
-        transaction: t,
-      }
+      { replacements: { crawlerName }, type: QueryTypes.SELECT, transaction: t }
     );
 
     if (record.length > 0 && record[0].status === "done") {
@@ -113,7 +111,6 @@ async function runAllCrawlersOnceDB() {
       return;
     }
 
-    // Thêm record hoặc update status = 'running'
     if (record.length === 0) {
       await sequelize.query(
         `INSERT INTO crawler_status (id, crawler_name, status) VALUES (:id, :crawlerName, 'running')`,
@@ -127,11 +124,16 @@ async function runAllCrawlersOnceDB() {
     }
 
     await t.commit();
+  } catch (err) {
+    if (t) await t.rollback();
+    console.error("❌ Lỗi khi lock/update record:", err);
+    return;
+  }
 
-    // Thực sự chạy crawler
+  // Chạy crawler ngoài transaction
+  try {
     await runAllCrawlers();
 
-    // Cập nhật trạng thái thành 'done'
     await sequelize.query(
       `UPDATE crawler_status SET status='done', last_run_at=NOW(), updatedAt=NOW() WHERE crawler_name=:crawlerName`,
       { replacements: { crawlerName } }
@@ -139,8 +141,8 @@ async function runAllCrawlersOnceDB() {
 
     console.log("✅ Crawler hoàn tất và lưu trạng thái vào DB!");
   } catch (err) {
-    await t.rollback();
     console.error("❌ Lỗi khi chạy crawler:", err);
+    // Không throw → server vẫn chạy bình thường
   }
 }
 

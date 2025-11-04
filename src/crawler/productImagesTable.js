@@ -9,13 +9,33 @@ async function productImagesTable() {
   const { browser, page } = await initBrowser();
 
   try {
-    for (const product of products) {
+    for (const [index, product] of products.entries()) {
       const url = `${productDetailUrl}/${product.slug}`;
       console.log(`🔎 Crawl images for product: ${product.slug} -> ${url}`);
 
       try {
-        await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // Thêm delay trước khi load trang (3-5 giây)
+        if (index > 0) {
+          const delay = 3000 + Math.random() * 2000; // 3-5 giây
+          console.log(
+            `⏳ Chờ ${Math.round(delay / 1000)} giây trước khi tiếp tục...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+
+        await page.goto(url, {
+          waitUntil: "networkidle2",
+          timeout: 120000, // Tăng timeout lên 2 phút
+        });
+
+        // Tăng delay sau khi load trang (3-5 giây)
+        const postLoadDelay = 3000 + Math.random() * 2000;
+        console.log(
+          `⏳ Chờ ${Math.round(
+            postLoadDelay / 1000
+          )} giây để trang load hoàn toàn...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, postLoadDelay));
 
         const images = await page.evaluate((productImagesElement) => {
           function getImageUrl(imgEl) {
@@ -85,38 +105,68 @@ async function productImagesTable() {
 
         // Lưu main image trước (là ảnh đầu tiên của subImages) - GIỮ NGUYÊN
         if (images.mainImage) {
-          // ✅ THÊM: Upload lên Cloudinary trước khi lưu
-          const cloudinaryResult = await cloudinary.uploader.upload(
-            images.mainImage,
-            {
-              folder: "products",
-              resource_type: "auto",
-            }
-          );
-
-          data.push({
-            product_id: product.id,
-            image_url: cloudinaryResult.secure_url, // ✅ Dùng link Cloudinary
-            is_main: true,
-          });
-          uniqueImages.add(images.mainImage);
-        }
-
-        // Lưu sub images sau (loại bỏ ảnh trùng main) - GIỮ NGUYÊN LOGIC
-        for (const sub of images.subImages) {
-          if (sub && !uniqueImages.has(sub)) {
+          try {
             // ✅ THÊM: Upload lên Cloudinary trước khi lưu
-            const cloudinaryResult = await cloudinary.uploader.upload(sub, {
-              folder: "products",
-              resource_type: "auto",
-            });
+            console.log(`☁️ Uploading main image to Cloudinary...`);
+            const cloudinaryResult = await cloudinary.uploader.upload(
+              images.mainImage,
+              {
+                folder: "products",
+                resource_type: "auto",
+                timeout: 60000, // Thêm timeout cho Cloudinary
+              }
+            );
 
             data.push({
               product_id: product.id,
               image_url: cloudinaryResult.secure_url, // ✅ Dùng link Cloudinary
-              is_main: false,
+              is_main: true,
             });
-            uniqueImages.add(sub);
+            uniqueImages.add(images.mainImage);
+            console.log(`✅ Main image uploaded successfully`);
+          } catch (uploadError) {
+            console.error(
+              `❌ Error uploading main image:`,
+              uploadError.message
+            );
+          }
+        }
+
+        // Lưu sub images sau (loại bỏ ảnh trùng main) - GIỮ NGUYÊN LOGIC
+        for (const [imgIndex, sub] of images.subImages.entries()) {
+          if (sub && !uniqueImages.has(sub)) {
+            try {
+              // Thêm delay giữa các lần upload ảnh (1-2 giây)
+              if (imgIndex > 0) {
+                await new Promise((resolve) =>
+                  setTimeout(resolve, 1000 + Math.random() * 1000)
+                );
+              }
+
+              console.log(
+                `☁️ Uploading sub image ${imgIndex + 1}/${
+                  images.subImages.length
+                } to Cloudinary...`
+              );
+              const cloudinaryResult = await cloudinary.uploader.upload(sub, {
+                folder: "products",
+                resource_type: "auto",
+                timeout: 60000, // Thêm timeout cho Cloudinary
+              });
+
+              data.push({
+                product_id: product.id,
+                image_url: cloudinaryResult.secure_url, // ✅ Dùng link Cloudinary
+                is_main: false,
+              });
+              uniqueImages.add(sub);
+              console.log(`✅ Sub image ${imgIndex + 1} uploaded successfully`);
+            } catch (uploadError) {
+              console.error(
+                `❌ Error uploading sub image ${imgIndex + 1}:`,
+                uploadError.message
+              );
+            }
           }
         }
 
@@ -128,17 +178,27 @@ async function productImagesTable() {
         } else {
           console.log(`⚠️ No images found for product ${product.slug}`);
         }
+
+        // Thêm progress report
+        console.log(
+          `📊 Progress: ${index + 1}/${products.length} products processed`
+        );
       } catch (err) {
         console.error(
           `❌ Error crawling product ${product.slug}:`,
           err.message
         );
+
+        // Nếu có lỗi, thêm delay dài hơn trước khi tiếp tục
+        console.log(`⏳ Chờ 10 giây trước khi tiếp tục sau lỗi...`);
+        await new Promise((resolve) => setTimeout(resolve, 10000));
       }
     }
   } catch (err) {
     console.error("❌ Error in productImagesTable:", err.message);
   } finally {
     await browser.close();
+    console.log("🎯 Crawl product images completed!");
   }
 }
 

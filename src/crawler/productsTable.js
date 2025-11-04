@@ -22,7 +22,17 @@ async function crawlProducts() {
         const url = `${collectionUrl}/${col.slug}?page=${pageIndex}`;
         console.log(`🔎 Crawl page: ${pageIndex} -> ${url}`);
 
-        await page.goto(url, { waitUntil: "networkidle2", timeout: 120000 });
+        // Tăng timeout và thêm delay trước khi load trang
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // Delay 2 giây
+        await page.goto(url, {
+          waitUntil: "networkidle2",
+          timeout: 180000, // Tăng timeout lên 3 phút
+        });
+
+        // Thêm delay ngẫu nhiên sau khi load trang (1-3 giây)
+        await new Promise((resolve) =>
+          setTimeout(resolve, 1000 + Math.random() * 2000)
+        );
 
         const products = await page.evaluate((productElement) => {
           function getImageUrl(imgEl) {
@@ -131,12 +141,28 @@ async function crawlProducts() {
           break;
         }
 
+        // Thêm delay giữa các page (2-4 giây)
+        await new Promise((resolve) =>
+          setTimeout(resolve, 2000 + Math.random() * 2000)
+        );
         pageIndex++;
       }
 
       console.log(
         `🎯 Kết thúc collection ${col.slug}: ${totalProductsCollected} sản phẩm`
       );
+
+      // Thêm delay giữa các collection (3-5 giây)
+      if (col !== collections[collections.length - 1]) {
+        console.log(
+          `⏳ Chờ ${
+            Math.round(3000 + Math.random() * 2000) / 1000
+          } giây trước khi chuyển collection tiếp theo...`
+        );
+        await new Promise((resolve) =>
+          setTimeout(resolve, 3000 + Math.random() * 2000)
+        );
+      }
     }
   } catch (err) {
     console.error("❌ Lỗi khi crawl:", err.message);

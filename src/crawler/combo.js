@@ -23,20 +23,23 @@ function getImageUrl(imgEl) {
 }
 
 async function crawlProductDetail(page, slug) {
-  const maxRetries = 1;
+  const maxRetries = 2; // Tăng từ 1 lên 2 lần thử
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const productUrl = `${homeUrl}/products/${slug}`;
       console.log(`   🔍 [Lần ${attempt}] Đang truy cập: ${productUrl}`);
 
+      // Tăng timeout navigation lên 45s
       await page.goto(productUrl, {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: 45000,
       });
 
-      // Thêm timeout chờ trang load hoàn toàn
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Tăng timeout chờ trang load hoàn toàn lên 5-8 giây
+      const loadDelay = Math.floor(Math.random() * 3000) + 5000; // 5-8 giây ngẫu nhiên
+      console.log(`   ⏳ Chờ ${loadDelay}ms để trang load hoàn toàn...`);
+      await new Promise((resolve) => setTimeout(resolve, loadDelay));
 
       const pageTitle = await page.title();
       console.log(`   📄 Tiêu đề trang: ${pageTitle}`);
@@ -52,16 +55,6 @@ async function crawlProductDetail(page, slug) {
       }
 
       console.log(`   🔎 Đang tìm kiếm selectors...`);
-      console.log(`      - Price selector: ${comboElement.price}`);
-      console.log(
-        `      - Original price selector: ${comboElement.original_price}`
-      );
-      console.log(
-        `      - Discounted price selector: ${comboElement.discounted_price}`
-      );
-      console.log(`      - Name selector: ${comboElement.name}`);
-      console.log(`      - Short desc selector: ${comboElement.shortDesc}`);
-      console.log(`      - Detail desc selector: ${comboElement.detailDesc}`);
 
       const productData = await page.evaluate((comboElement) => {
         console.log("🎯 Bắt đầu evaluate product detail...");
@@ -69,7 +62,6 @@ async function crawlProductDetail(page, slug) {
         const getPrice = () => {
           console.log("💰 Đang tìm kiếm giá...");
 
-          // Thử các selector khác nhau cho giá
           const priceSelectors = [
             comboElement.price,
             comboElement.original_price,
@@ -91,7 +83,6 @@ async function crawlProductDetail(page, slug) {
           }
 
           console.log(`💰 Selector sử dụng: ${usedSelector}`);
-          console.log(`💰 Element tìm thấy:`, priceElement);
 
           if (priceElement) {
             const priceText = priceElement.innerText.trim();
@@ -106,7 +97,6 @@ async function crawlProductDetail(page, slug) {
         const getName = () => {
           console.log("📛 Đang tìm kiếm tên sản phẩm...");
           const nameElement = document.querySelector(comboElement.name);
-          console.log(`📛 Element tên:`, nameElement);
 
           if (nameElement) {
             const nameText = nameElement.innerText.trim();
@@ -123,14 +113,8 @@ async function crawlProductDetail(page, slug) {
           const shortDescEl = document.querySelector(comboElement.shortDesc);
           const detailDescEl = document.querySelector(comboElement.detailDesc);
 
-          console.log(`📝 Short desc element:`, shortDescEl);
-          console.log(`📝 Detail desc element:`, detailDescEl);
-
           const shortDesc = shortDescEl ? shortDescEl.innerHTML.trim() : "";
           const detailDesc = detailDescEl ? detailDescEl.innerHTML.trim() : "";
-
-          console.log(`📝 Short desc length: ${shortDesc.length}`);
-          console.log(`📝 Detail desc length: ${detailDesc.length}`);
 
           const combinedDesc = `${shortDesc}${detailDesc}`.trim();
           console.log(`📝 Combined desc length: ${combinedDesc.length}`);
@@ -159,21 +143,15 @@ async function crawlProductDetail(page, slug) {
           productData.price ? `"${productData.price}"` : "KHÔNG CÓ"
         }`
       );
-      console.log(
-        `      - Mô tả: ${
-          productData.description
-            ? `${productData.description.length} ký tự`
-            : "KHÔNG CÓ"
-        }`
-      );
 
       return productData;
     } catch (error) {
       console.log(`   ❌ Lỗi crawl lần ${attempt}: ${error.message}`);
 
       if (attempt < maxRetries) {
-        console.log(`   🔄 Thử lại sau 2s...`);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const retryDelay = Math.floor(Math.random() * 3000) + 4000; // 4-7 giây ngẫu nhiên
+        console.log(`   🔄 Thử lại sau ${retryDelay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       } else {
         console.log(`   💥 Đã thử ${maxRetries} lần nhưng không thành công`);
         return {
@@ -198,8 +176,9 @@ async function retryDatabaseOperation(operation, maxRetries = 3, delay = 1000) {
       );
 
       if (attempt < maxRetries) {
-        console.log(`   🔄 Thử lại sau ${delay}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+        const retryDelay = delay * attempt; // Exponential backoff
+        console.log(`   🔄 Thử lại sau ${retryDelay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
       } else {
         console.log(`   💥 Đã thử ${maxRetries} lần nhưng không thành công`);
         throw error;
@@ -219,19 +198,22 @@ async function crawlCombos() {
     ({ browser, page } = await initBrowser());
     console.log("✅ Khởi tạo browser thành công");
 
-    await page.setDefaultNavigationTimeout(30000);
-    await page.setDefaultTimeout(15000);
+    // Tăng timeout mặc định
+    await page.setDefaultNavigationTimeout(60000); // Tăng từ 30s lên 60s
+    await page.setDefaultTimeout(30000); // Tăng từ 15s lên 30s
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
 
+    // Cấu hình request interception để tối ưu performance
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       const resourceType = req.resourceType();
       if (
         resourceType === "image" ||
         resourceType === "font" ||
-        resourceType === "media"
+        resourceType === "media" ||
+        resourceType === "stylesheet"
       ) {
         req.abort();
       } else {
@@ -242,17 +224,21 @@ async function crawlCombos() {
     console.log(`🌐 Đang truy cập: ${homeUrl}`);
     await page.goto(homeUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: 45000, // Tăng timeout trang chủ
     });
     console.log("✅ Truy cập trang chủ thành công");
 
+    // Tăng timeout chờ container
     console.log(`🔍 Đang tìm kiếm container: ${comboElement.container}`);
     await page.waitForSelector(comboElement.container, {
-      timeout: 10000,
+      timeout: 15000, // Tăng từ 10s lên 15s
     });
     console.log("✅ Tìm thấy container combos");
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Thêm delay ổn định trước khi extract
+    const stableDelay = Math.floor(Math.random() * 2000) + 2000; // 2-4 giây
+    console.log(`⏳ Chờ ${stableDelay}ms để trang ổn định...`);
+    await new Promise((resolve) => setTimeout(resolve, stableDelay));
 
     console.log("🔄 Đang extract dữ liệu combos...");
     const combosData = await page.evaluate((comboElement) => {
@@ -335,14 +321,6 @@ async function crawlCombos() {
                   slug = slug.replace(/#popover-product-\d+-/, "");
                 }
 
-                console.log(`   Hotspot ${btnIndex + 1}:`);
-                console.log(`     - Top: ${topMatch ? topMatch[1] : "null"}%`);
-                console.log(
-                  `     - Left: ${leftMatch ? leftMatch[1] : "null"}%`
-                );
-                console.log(`     - Popover: ${popoverContent}`);
-                console.log(`     - Slug: ${slug}`);
-
                 combo.hotspots.push({
                   top_position: topMatch ? parseFloat(topMatch[1]) : null,
                   left_position: leftMatch ? parseFloat(leftMatch[1]) : null,
@@ -380,9 +358,6 @@ async function crawlCombos() {
             const detailDescEl = document.querySelector(
               comboElement.detailDesc
             );
-
-            console.log(`📝 Short desc element:`, shortDescEl);
-            console.log(`📝 Detail desc element:`, detailDescEl);
 
             const shortDesc = shortDescEl ? shortDescEl.innerHTML.trim() : "";
             const detailDesc = detailDescEl
@@ -430,13 +405,8 @@ async function crawlCombos() {
 
     console.log(`📦 Tổng số sản phẩm cần crawl: ${allSlugs.length}`);
 
-    // Debug: hiển thị tất cả slugs
-    console.log("\n📋 Danh sách slugs cần crawl:");
-    allSlugs.forEach((item, index) => {
-      console.log(`   ${index + 1}. ${item.slug}`);
-    });
-
-    const batchSize = 3;
+    // Giảm batch size và tăng timeout để ổn định hơn
+    const batchSize = 2; // Giảm từ 3 xuống 2
     for (let i = 0; i < allSlugs.length; i += batchSize) {
       const batch = allSlugs.slice(i, i + batchSize);
       console.log(
@@ -448,8 +418,8 @@ async function crawlCombos() {
       for (const item of batch) {
         console.log(`\n📦 Đang crawl sản phẩm: ${item.slug}`);
 
-        // Thêm timeout giữa các lần crawl sản phẩm
-        const randomDelay = Math.floor(Math.random() * 2000) + 2000; // 2-4 giây ngẫu nhiên
+        // Tăng timeout giữa các lần crawl sản phẩm lên 4-7 giây
+        const randomDelay = Math.floor(Math.random() * 3000) + 4000; // 4-7 giây ngẫu nhiên
         console.log(`   ⏳ Chờ ${randomDelay}ms trước khi crawl...`);
         await new Promise((resolve) => setTimeout(resolve, randomDelay));
 
@@ -470,9 +440,9 @@ async function crawlCombos() {
           }`
         );
 
-        // Thêm timeout giữa các sản phẩm trong cùng batch
+        // Tăng timeout giữa các sản phẩm trong cùng batch
         if (batch.indexOf(item) < batch.length - 1) {
-          const betweenProductDelay = Math.floor(Math.random() * 1000) + 1000; // 1-2 giây
+          const betweenProductDelay = Math.floor(Math.random() * 2000) + 2000; // 2-4 giây
           console.log(
             `   ⏳ Chờ ${betweenProductDelay}ms trước khi chuyển sản phẩm tiếp theo...`
           );
@@ -482,9 +452,9 @@ async function crawlCombos() {
         }
       }
 
-      // Thêm timeout giữa các batch
+      // Tăng timeout giữa các batch lên 8-12 giây
       if (i + batchSize < allSlugs.length) {
-        const betweenBatchDelay = Math.floor(Math.random() * 3000) + 3000; // 3-6 giây
+        const betweenBatchDelay = Math.floor(Math.random() * 4000) + 8000; // 8-12 giây
         console.log(
           `\n⏳ Chờ ${betweenBatchDelay}ms trước khi chuyển batch tiếp theo...`
         );
@@ -512,36 +482,6 @@ async function crawlCombos() {
       console.log(
         `   ✅ Sản phẩm có dữ liệu: ${validProducts}/${combo.hotspots.length}`
       );
-      console.log(
-        `   📝 Description: ${
-          combo.description
-            ? combo.description.substring(0, 50) + "..."
-            : "Không có"
-        }`
-      );
-
-      // Debug chi tiết từng hotspot
-      combo.hotspots.forEach((hotspot, hIndex) => {
-        console.log(`      Hotspot ${hIndex + 1}:`);
-        console.log(`        - Slug: ${hotspot.slug}`);
-        console.log(`        - Có productData: ${!!hotspot.productData}`);
-        if (hotspot.productData) {
-          console.log(
-            `        - Tên: ${
-              hotspot.productData.name
-                ? `"${hotspot.productData.name}"`
-                : "KHÔNG CÓ"
-            }`
-          );
-          console.log(
-            `        - Giá: ${
-              hotspot.productData.price
-                ? `"${hotspot.productData.price}"`
-                : "KHÔNG CÓ"
-            }`
-          );
-        }
-      });
     });
 
     console.log("\n========================================");
@@ -673,22 +613,15 @@ async function saveToDatabase(combosData) {
             hotspot.productData
           ) {
             try {
-              let price = 0;
-              if (hotspot.productData.price) {
-                const priceMatch =
-                  hotspot.productData.price.match(/(\d+[.,]?\d*)/);
-                price = priceMatch
-                  ? parseFloat(priceMatch[1].replace(",", "."))
-                  : 0;
-              }
-
               console.log(`   🔸 Đang lưu sản phẩm: ${hotspot.slug}`);
+
               function getRandomPrice() {
-                const min = 500000; // Giá tối thiểu
-                const max = 2500000; // Giá tối đa
+                const min = 500000;
+                const max = 2500000;
                 return Math.floor(Math.random() * (max - min + 1)) + min;
               }
-              // Lưu Product với retry
+
+              // Lưu Product với retry và tăng delay
               const product = await retryDatabaseOperation(
                 async () => {
                   return await Product.create({
@@ -706,8 +639,8 @@ async function saveToDatabase(combosData) {
                   });
                 },
                 3,
-                1500
-              ); // 3 lần thử, delay 1.5s
+                2000 // Tăng delay lên 2s
+              );
 
               savedProducts++;
               successProducts++;

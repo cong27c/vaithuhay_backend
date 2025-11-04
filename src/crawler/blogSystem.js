@@ -11,6 +11,15 @@ async function crawlBlogSystems() {
     { name: "cong-nghe", totalPages: 15 },
   ];
 
+  // Cấu hình timeout và delay
+  const config = {
+    pageLoadTimeout: 90000, // Tăng từ 60s lên 90s
+    navigationTimeout: 45000, // Tăng từ 30s lên 45s
+    betweenPagesDelay: 3000, // Tăng từ 1s lên 3s giữa các trang
+    betweenBlogsDelay: 2000, // Thêm delay 2s giữa các blog chi tiết
+    selectorTimeout: 15000, // Tăng timeout cho selector
+  };
+
   try {
     for (const typeInfo of blogTypes) {
       const type = typeInfo.name;
@@ -27,7 +36,7 @@ async function crawlBlogSystems() {
         try {
           await page.goto(typeUrl, {
             waitUntil: "networkidle2",
-            timeout: 60000,
+            timeout: config.pageLoadTimeout,
           });
         } catch (error) {
           console.log(`❌ Lỗi khi load trang ${typeUrl}:`, error.message);
@@ -37,12 +46,15 @@ async function crawlBlogSystems() {
         // Kiểm tra có blog list không
         try {
           await page.waitForSelector(blogSystemElement.blogList, {
-            timeout: 10000,
+            timeout: config.selectorTimeout,
           });
         } catch {
           console.log(`❌ Không tìm thấy blog list trên trang ${currentPage}`);
           continue;
         }
+
+        // Thêm delay trước khi lấy dữ liệu
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         // Lấy danh sách blog items
         const blogItems = await page.$$eval(
@@ -114,17 +126,28 @@ async function crawlBlogSystems() {
           (item) => item.slug && item.slug !== "blogs"
         );
 
+        console.log(`📝 Tìm thấy ${validBlogItems.length} blog hợp lệ`);
+
         const blogsToSave = [];
-        for (const blogItem of validBlogItems) {
+        for (const [index, blogItem] of validBlogItems.entries()) {
           try {
             const blogDetailUrl = blogItem.fullUrl?.startsWith("http")
               ? blogItem.fullUrl
               : `${blogsUrl}/${blogItem.slug}`;
 
+            console.log(
+              `🔍 Đang crawl chi tiết blog ${index + 1}/${
+                validBlogItems.length
+              }: ${blogItem.slug}`
+            );
+
             await page.goto(blogDetailUrl, {
               waitUntil: "networkidle2",
-              timeout: 30000,
+              timeout: config.navigationTimeout,
             });
+
+            // Thêm delay trước khi lấy content
+            await new Promise((resolve) => setTimeout(resolve, 1000));
 
             const contentData = await page.evaluate((contentSelector) => {
               const getImageUrl = (imgEl) => {
@@ -157,7 +180,10 @@ async function crawlBlogSystems() {
               };
             }, blogSystemElement.contentHtml);
 
-            if (!contentData.html || !contentData.text) continue;
+            if (!contentData.html || !contentData.text) {
+              console.log(`⚠️ Blog ${blogItem.slug} không có content, bỏ qua`);
+              continue;
+            }
 
             blogsToSave.push({
               title: blogItem.title,
@@ -169,8 +195,20 @@ async function crawlBlogSystems() {
               author: blogItem.author,
               status: "published",
             });
+
+            console.log(`✅ Đã crawl xong blog ${blogItem.slug}`);
+
+            // Delay giữa các blog chi tiết
+            if (index < validBlogItems.length - 1) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, config.betweenBlogsDelay)
+              );
+            }
           } catch (error) {
-            console.error(`💥 Lỗi khi crawl chi tiết blog:`, error.message);
+            console.error(
+              `💥 Lỗi khi crawl chi tiết blog ${blogItem.slug}:`,
+              error.message
+            );
           }
         }
 
@@ -199,8 +237,17 @@ async function crawlBlogSystems() {
           );
         }
 
-        // Delay tránh bị chặn
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Delay tránh bị chặn - tăng thời gian chờ
+        if (currentPage < totalPages) {
+          console.log(
+            `⏳ Chờ ${
+              config.betweenPagesDelay / 1000
+            }s trước khi sang trang tiếp theo...`
+          );
+          await new Promise((resolve) =>
+            setTimeout(resolve, config.betweenPagesDelay)
+          );
+        }
       }
     }
   } catch (error) {

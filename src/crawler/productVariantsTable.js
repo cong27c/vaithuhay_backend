@@ -66,6 +66,7 @@ async function getImageUrl(page) {
     return "";
   }
 }
+
 // Hàm hỗ trợ parse price
 function parsePrice(priceString) {
   if (!priceString) return 0;
@@ -160,30 +161,79 @@ async function safeClick(page, element, value) {
   );
 }
 
+// Hàm chờ với timeout tùy chỉnh
+async function waitWithTimeout(ms) {
+  console.log(`⏳ Chờ ${ms}ms để đảm bảo ổn định...`);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Hàm retry với số lần thử và timeout
+async function retryWithBackoff(operation, maxRetries = 3, baseDelay = 3000) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      console.log(
+        `❌ Lần thử ${attempt}/${maxRetries} thất bại:`,
+        error.message
+      );
+
+      if (attempt < maxRetries) {
+        const delay = baseDelay * attempt;
+        console.log(`⏳ Thử lại sau ${delay}ms...`);
+        await waitWithTimeout(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function crawlProductVariants() {
   const { browser, page } = await initBrowser();
 
-  // Thêm các setting để tăng timeout và handle lỗi tốt hơn
-  await page.setDefaultNavigationTimeout(60000);
-  await page.setDefaultTimeout(40000);
+  // Tăng timeout cho môi trường production
+  await page.setDefaultNavigationTimeout(120000); // Tăng từ 60s lên 120s
+  await page.setDefaultTimeout(60000); // Tăng từ 40s lên 60s
   await page.setViewport({ width: 1920, height: 1080 });
+
+  // Thêm các options để tăng độ ổn định
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  );
 
   const products = await Product.findAll({
     attributes: ["id", "slug", "name"],
   });
 
-  for (const product of products) {
+  console.log(`📦 Bắt đầu crawl variants cho ${products.length} sản phẩm`);
+
+  for (const [index, product] of products.entries()) {
     try {
       console.log(
-        `\n=== Đang crawl variants cho sản phẩm: ${product.slug} ===`
+        `\n=== [${index + 1}/${
+          products.length
+        }] Đang crawl variants cho sản phẩm: ${product.slug} ===`
       );
 
       // 1. Vào trang chi tiết sản phẩm với retry mechanism
       const url = `${productDetailUrl}/${product.slug}`;
-      console.log(`Truy cập URL: ${url}`);
+      console.log(`🔗 Truy cập URL: ${url}`);
 
-      await page.goto(url, { waitUntil: "networkidle2" });
-      await new Promise((resolve) => setTimeout(resolve, 4000));
+      await retryWithBackoff(
+        async () => {
+          await page.goto(url, {
+            waitUntil: "networkidle2",
+            timeout: 120000,
+          });
+          await waitWithTimeout(6000); // Tăng từ 4s lên 6s
+        },
+        2,
+        5000
+      );
 
       // 2. Tìm variant container và option container
       const variantContainer = await page.$(
@@ -191,7 +241,7 @@ async function crawlProductVariants() {
       );
       if (!variantContainer) {
         console.log(
-          `Không tìm thấy variant container cho sản phẩm: ${product.slug}`
+          `⚠️ Không tìm thấy variant container cho sản phẩm: ${product.slug}`
         );
         continue;
       }
@@ -201,18 +251,18 @@ async function crawlProductVariants() {
       );
       if (!optionContainer) {
         console.log(
-          `Không tìm thấy option container cho sản phẩm: ${product.slug}`
+          `⚠️ Không tìm thấy option container cho sản phẩm: ${product.slug}`
         );
         continue;
       }
 
       // 3. Lấy tất cả các children divs của optionContainer
       const attributeDivs = await optionContainer.$$(":scope > div");
-      console.log(`Tìm thấy ${attributeDivs.length} attribute groups`);
+      console.log(`📊 Tìm thấy ${attributeDivs.length} attribute groups`);
 
       if (attributeDivs.length === 0) {
         console.log(
-          `Không tìm thấy attribute nào cho sản phẩm: ${product.slug}`
+          `⚠️ Không tìm thấy attribute nào cho sản phẩm: ${product.slug}`
         );
         continue;
       }
@@ -235,11 +285,11 @@ async function crawlProductVariants() {
         );
 
         if (!attributeName) {
-          console.log(`Attribute thứ ${i + 1} không có tên, bỏ qua`);
+          console.log(`❓ Attribute thứ ${i + 1} không có tên, bỏ qua`);
           continue;
         }
 
-        console.log(`Attribute ${i + 1}: ${attributeName}`);
+        console.log(`🏷️ Attribute ${i + 1}: ${attributeName}`);
 
         // Lấy các giá trị attribute
         const attributeValues = await attributeDiv.$$eval(
@@ -260,14 +310,14 @@ async function crawlProductVariants() {
         );
 
         console.log(
-          `- Tìm thấy ${attributeValues.length} giá trị:`,
+          `📋 Tìm thấy ${attributeValues.length} giá trị:`,
           attributeValues.map((av) => av.value)
         );
 
         // CHỈ thêm vào danh sách xử lý nếu có giá trị
         if (attributeValues.length === 0) {
           console.log(
-            `- Bỏ qua attribute "${attributeName}" vì không có giá trị`
+            `⏭️ Bỏ qua attribute "${attributeName}" vì không có giá trị`
           );
           continue;
         }
@@ -283,7 +333,7 @@ async function crawlProductVariants() {
             display_order: displayOrder,
           });
           console.log(
-            `Đã tạo attribute mới: ${attributeName} với display_order: ${displayOrder}`
+            `✅ Đã tạo attribute mới: ${attributeName} với display_order: ${displayOrder}`
           );
         }
 
@@ -303,7 +353,7 @@ async function crawlProductVariants() {
               display_value: attrValue.displayValue,
               attribute_id: attributeRecord.id,
             });
-            console.log(`Đã tạo attribute value mới: ${attrValue.value}`);
+            console.log(`✅ Đã tạo attribute value mới: ${attrValue.value}`);
           }
 
           attributeValueRecords.push({
@@ -329,14 +379,14 @@ async function crawlProductVariants() {
       const attributesData = validAttributesData;
       if (attributesData.length === 0) {
         console.log(
-          `Không có attribute nào hợp lệ cho sản phẩm: ${product.slug}`
+          `⚠️ Không có attribute nào hợp lệ cho sản phẩm: ${product.slug}`
         );
         continue;
       }
 
       // 5. Xác định attribute chính (đầu tiên)
       const primaryAttribute = attributesData[0];
-      console.log(`Attribute chính: ${primaryAttribute.name}`);
+      console.log(`🎯 Attribute chính: ${primaryAttribute.name}`);
 
       // 6. Lặp qua các giá trị của attribute chính và click để load giao diện
       const variants = [];
@@ -344,7 +394,7 @@ async function crawlProductVariants() {
       for (const primaryValue of primaryAttribute.values) {
         try {
           console.log(
-            `\nĐang xử lý attribute chính: ${primaryValue.attributeValue.value}`
+            `\n🔄 Đang xử lý attribute chính: ${primaryValue.attributeValue.value}`
           );
 
           // Click vào nút của attribute chính sử dụng safeClick
@@ -356,19 +406,19 @@ async function crawlProductVariants() {
 
           if (!clickSuccess) {
             console.log(
-              `Không thể click giá trị: ${primaryValue.attributeValue.value}`
+              `❌ Không thể click giá trị: ${primaryValue.attributeValue.value}`
             );
             continue;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 4000));
+          await waitWithTimeout(5000); // Tăng từ 4s lên 5s
 
           // 7. Tạo combinations từ các attribute còn lại
           const otherAttributes = attributesData.slice(1);
           const combinations = generateCombinations(otherAttributes);
 
           console.log(
-            `Tạo được ${combinations.length} combinations từ ${otherAttributes.length} attribute phụ`
+            `🔢 Tạo được ${combinations.length} combinations từ ${otherAttributes.length} attribute phụ`
           );
 
           // 8. Xử lý từng combination
@@ -383,7 +433,7 @@ async function crawlProductVariants() {
                   (attr) => attr.name === attrName
                 );
                 if (!attribute) {
-                  console.log(`Không tìm thấy attribute: ${attrName}`);
+                  console.log(`❓ Không tìm thấy attribute: ${attrName}`);
                   allAttributesSelected = false;
                   continue;
                 }
@@ -396,7 +446,7 @@ async function crawlProductVariants() {
                 );
 
                 if (clickSuccess) {
-                  await new Promise((resolve) => setTimeout(resolve, 2000));
+                  await waitWithTimeout(3000); // Tăng từ 2s lên 3s
                   combinationName += ` - ${attrValue}`;
                   console.log(`✅ Đã click: ${attrName} = ${attrValue}`);
                 } else {
@@ -410,8 +460,8 @@ async function crawlProductVariants() {
                 continue;
               }
 
-              // Chờ giao diện ổn định
-              await new Promise((resolve) => setTimeout(resolve, 5000));
+              // Chờ giao diện ổn định với timeout dài hơn
+              await waitWithTimeout(6000); // Tăng từ 5s lên 6s
 
               // 9. Lấy thông tin variant
               const variantInfo = await getVariantInfo(
@@ -446,21 +496,21 @@ async function crawlProductVariants() {
               }
             } catch (combinationError) {
               console.log(
-                `Lỗi khi xử lý combination:`,
+                `❌ Lỗi khi xử lý combination:`,
                 combinationError.message
               );
             }
           }
         } catch (primaryValueError) {
           console.log(
-            `Lỗi khi xử lý giá trị chính ${primaryValue.attributeValue.value}:`,
+            `❌ Lỗi khi xử lý giá trị chính ${primaryValue.attributeValue.value}:`,
             primaryValueError.message
           );
         }
       }
 
       // 10. Lưu dữ liệu vào database
-      console.log(`\nĐang lưu ${variants.length} variants vào database...`);
+      console.log(`\n💾 Đang lưu ${variants.length} variants vào database...`);
 
       for (const variant of variants) {
         try {
@@ -474,7 +524,7 @@ async function crawlProductVariants() {
             stock: Math.floor(Math.random() * (100 - 30 + 1)) + 30,
           });
 
-          console.log(`Đã tạo ProductVariant: ${variant.name}`);
+          console.log(`✅ Đã tạo ProductVariant: ${variant.name}`);
 
           // Tạo VariantAttribute records
           for (const attrData of variant.attributes) {
@@ -487,11 +537,11 @@ async function crawlProductVariants() {
           }
 
           console.log(
-            `Đã tạo ${variant.attributes.length} VariantAttribute records`
+            `✅ Đã tạo ${variant.attributes.length} VariantAttribute records`
           );
         } catch (saveError) {
           console.log(
-            `Lỗi khi lưu variant ${variant.name}:`,
+            `❌ Lỗi khi lưu variant ${variant.name}:`,
             saveError.message
           );
         }
@@ -501,13 +551,25 @@ async function crawlProductVariants() {
         `\n✅ Hoàn thành crawl variants cho sản phẩm: ${product.slug}`
       );
       console.log(`📊 Tổng số variants: ${variants.length}`);
+
+      // Thêm delay giữa các sản phẩm để tránh bị block
+      if (index < products.length - 1) {
+        console.log(`⏳ Chờ 10s trước khi chuyển sang sản phẩm tiếp theo...`);
+        await waitWithTimeout(10000);
+      }
     } catch (error) {
       console.log(`❌ Lỗi khi crawl sản phẩm ${product.slug}:`, error.message);
+
+      // Thêm delay ngay cả khi có lỗi
+      if (index < products.length - 1) {
+        console.log(`⏳ Chờ 10s trước khi thử sản phẩm tiếp theo...`);
+        await waitWithTimeout(10000);
+      }
     }
   }
 
   await browser.close();
-  console.log("\n=== HOÀN THÀNH CRAWL TẤT CẢ SẢN PHẨM ===");
+  console.log("\n🎉 === HOÀN THÀNH CRAWL TẤT CẢ SẢN PHẨM ===");
 }
 
 module.exports = { crawlProductVariants };

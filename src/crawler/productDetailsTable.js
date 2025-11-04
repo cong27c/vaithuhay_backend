@@ -15,6 +15,20 @@ async function crawlProductDetail() {
   let successCount = 0;
   let errorCount = 0;
 
+  // Cấu hình timeout và delay
+  const config = {
+    navigationTimeout: 120000, // 2 phút
+    jsExecutionDelay: 8000, // 8 giây chờ JS chạy xong
+    minDelayBetweenRequests: 5000, // 5-10 giây random delay
+    maxDelayBetweenRequests: 10000,
+    errorRetryDelay: 10000, // 10 giây delay khi có lỗi
+  };
+
+  console.log(
+    `🚀 Starting crawl for ${products.length} products with production settings`
+  );
+  console.log(`📋 Config: ${JSON.stringify(config, null, 2)}`);
+
   for (const [index, product] of products.entries()) {
     const url = `${productDetailUrl}/${product.slug}`;
 
@@ -24,20 +38,31 @@ async function crawlProductDetail() {
       } ===`
     );
     console.log(`URL: ${url}`);
+    console.log(`⏰ Start time: ${new Date().toISOString()}`);
 
     try {
-      // Đơn giản: chỉ cần goto với timeout cao
-      console.log(`Navigating to URL...`);
+      // Điều hướng với timeout cao và retry mechanism
+      console.log(
+        `🌐 Navigating to URL with ${config.navigationTimeout}ms timeout...`
+      );
 
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: config.navigationTimeout,
+      });
 
-      console.log(`✅ Page loaded successfully`);
+      console.log(`✅ Page loaded successfully at ${new Date().toISOString()}`);
 
-      // Chờ thêm để đảm bảo JavaScript chạy xong
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      // Chờ lâu hơn để đảm bảo JavaScript chạy xong hoàn toàn
+      console.log(
+        `⏳ Waiting ${config.jsExecutionDelay}ms for JavaScript execution...`
+      );
+      await new Promise((resolve) =>
+        setTimeout(resolve, config.jsExecutionDelay)
+      );
 
       // 2. Lấy dữ liệu theo selector
-      console.log(`Extracting data...`);
+      console.log(`🔍 Extracting data...`);
 
       const data = await page.evaluate((productDetailElement) => {
         const getText = (sel) =>
@@ -141,7 +166,9 @@ async function crawlProductDetail() {
         };
       }, productDetailElement);
 
-      console.log(`✅ Data extracted successfully`);
+      console.log(
+        `✅ Data extracted successfully at ${new Date().toISOString()}`
+      );
 
       // 3. Lưu vào bảng ProductDetail
       await ProductDetail.create({
@@ -156,22 +183,37 @@ async function crawlProductDetail() {
       successCount++;
       console.log(`✅ Successfully saved: ${product.slug}`);
 
-      // Thêm delay giữa các request để tránh bị block
+      // Thêm delay dài hơn giữa các request để tránh bị block trên production
       if (index < products.length - 1) {
-        const delay = Math.random() * 3000 + 2000; // 2-5 seconds random delay
+        const delay =
+          Math.random() *
+            (config.maxDelayBetweenRequests - config.minDelayBetweenRequests) +
+          config.minDelayBetweenRequests;
+
         console.log(`⏳ Waiting ${Math.round(delay)}ms before next request...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     } catch (error) {
       errorCount++;
       console.error(`❌ Failed to process ${product.slug}:`, error.message);
+      console.error(`🕒 Error time: ${new Date().toISOString()}`);
+
+      // Thêm delay khi có lỗi để tránh request liên tục
+      console.log(`💤 Waiting ${config.errorRetryDelay}ms after error...`);
+      await new Promise((resolve) =>
+        setTimeout(resolve, config.errorRetryDelay)
+      );
 
       // Nếu lỗi, thử reload page trước khi tiếp tục
       try {
-        await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
-        console.log(`Page reloaded after error`);
+        console.log(`🔄 Attempting page reload after error...`);
+        await page.reload({
+          waitUntil: "domcontentloaded",
+          timeout: config.navigationTimeout,
+        });
+        console.log(`✅ Page reloaded successfully`);
       } catch (reloadError) {
-        console.log(`Could not reload page: ${reloadError.message}`);
+        console.log(`❌ Could not reload page: ${reloadError.message}`);
       }
 
       continue;
@@ -187,6 +229,7 @@ async function crawlProductDetail() {
   console.log(
     `📈 Success rate: ${((successCount / products.length) * 100).toFixed(2)}%`
   );
+  console.log(`⏰ End time: ${new Date().toISOString()}`);
 
   return {
     total: products.length,

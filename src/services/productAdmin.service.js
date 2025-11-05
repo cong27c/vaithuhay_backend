@@ -110,6 +110,7 @@ class ProductService {
 
       // 🎯 TRANSFORM DATA ĐỂ ĐỒNG BỘ VỚI FE
       const productData = product.toJSON();
+      console.log("productData", productData);
 
       // Tách ảnh chính và ảnh phụ
       const mainImage = productData.images?.find((img) => img.is_main);
@@ -124,76 +125,28 @@ class ProductService {
           highlights = { img: "", highlights_html: [] };
         }
       }
-
-      // Transform data theo cấu trúc FE mong đợi
       const transformedProduct = {
         id: productData.id,
         name: productData.name,
         slug: productData.slug,
+        description: productData.description,
         price: parseFloat(productData.price) || 0,
         stock: parseInt(productData.stock) || 0,
         weight: parseFloat(productData.weight) || 0,
         release_date: productData.release_date,
         status: productData.status,
+        brand_id: productData.brand_id,
 
-        // Detail info - ĐỒNG BỘ VỚI FE
-        detail: {
-          id: productData.detail?.id,
-          title: productData.detail?.title || productData.name,
-          long_description: productData.detail?.long_description || "",
-          specifications: productData.detail?.specifications || "",
-          highlights: highlights || { img: "", highlights_html: [] },
-          care_instructions: productData.detail?.care_instructions || "",
-          origin: productData.detail?.origin || "",
-          material: productData.detail?.material || "",
-        },
+        // 🎯 FIX: Trả về đúng format FE mong đợi
+        main_image: mainImage?.image_url || "", // CHỈ image_url
+        sub_images: subImages.map((img) => img.image_url), // MẢNG image_url
 
-        // Images - ĐỒNG BỘ VỚI FE
-        main_image: mainImage
-          ? {
-              id: mainImage.id,
-              image_url: mainImage.image_url,
-              is_main: true,
-            }
-          : null,
-
-        sub_images: subImages?.map((img) => ({
-          id: img.id,
-          image_url: img.image_url,
-          is_main: false,
-        })),
-
-        // Variants - ĐỒNG BỘ VỚI FE
-        variants:
-          productData.variants?.map((variant) => ({
-            id: variant.id,
-            sku: variant.sku,
-            price: parseFloat(variant.price) || 0,
-            stock: parseInt(variant.stock) || 0,
-            weight: parseFloat(variant.weight) || 0,
-            status: variant.status,
-            attribute_values:
-              variant.attribute_values?.map((attr) => ({
-                id: attr.id,
-                value: attr.value,
-                attribute_id: attr.attribute_id,
-                attribute_name: attr.attribute?.name,
-              })) || [],
-          })) || [],
-
-        // Collections
-        collections:
-          productData.collections?.map((collection) => ({
-            id: collection.id,
-            name: collection.name,
-            slug: collection.slug,
-          })) || [],
-
-        // Metadata
-        created_at: productData.created_at,
-        updated_at: productData.updated_at,
+        // Giữ nguyên các field khác để transform trên FE hoạt động
+        images: productData.images || [],
+        variants: productData.variants || [],
+        collections: productData.collections || [],
+        detail: productData.detail || null,
       };
-
       return transformedProduct;
     } catch (error) {
       if (error.status === 404) throw error;

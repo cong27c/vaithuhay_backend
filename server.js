@@ -27,6 +27,7 @@ app.use(
 );
 app.use(express.static("public"));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Middlewares
@@ -47,29 +48,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Crawler status endpoint
-app.get("/crawler-status", async (req, res) => {
-  try {
-    const status = await sequelize.query(
-      `SELECT * FROM crawler_status WHERE crawler_name = 'all_crawlers'`,
-      { type: QueryTypes.SELECT }
-    );
-
-    res.json({
-      success: true,
-      data: status[0] || null,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
 // Start server
 app.listen(port, () => {
   console.log(`🚀 Server đang chạy trên port ${port}`);
-  console.log(`📊 Health check: http://localhost:${port}/health`);
-  console.log(`🔍 Crawler status: http://localhost:${port}/crawler-status`);
 });

@@ -7,17 +7,57 @@ const {
 } = require("@/models");
 const { updateOrderStatus } = require("./orderStatus.service");
 const { initiatePayment } = require("./payment.service");
+
+// === Helper tạo order number ===
 const generateOrderNumber = () => {
-  // Ví dụ: 'ORD' + timestamp + random 4 chữ số
   return `ORD${Date.now()}${Math.floor(Math.random() * 10000)}`;
 };
+
+// === Helper tính tổng tiền giỏ hàng ===
+function calculateCartTotal(cartItems) {
+  return cartItems.reduce((sum, item) => sum + +item.price * +item.quantity, 0);
+}
+
+// === Helper build OrderItem từ cartItems (hỗ trợ combo và sản phẩm đơn lẻ) ===
+function buildOrderItems(cartItems, orderId) {
+  try {
+    return cartItems.flatMap((item) => {
+      if (!item.isCombo) {
+        // Sản phẩm đơn lẻ
+        return [
+          {
+            order_id: orderId,
+            product_id: item.id,
+            variant_id: item.variant_id || null,
+            quantity: item.quantity,
+            unit_price: item.price,
+            total_price: item.price * item.quantity,
+          },
+        ];
+      } else {
+        // Combo → tách thành nhiều sản phẩm
+        return item.products.map((p) => ({
+          order_id: orderId,
+          product_id: p.id,
+          variant_id: p.variant_id || null,
+          quantity: (p.quantity || 1) * item.quantity, // nhân với số lượng combo
+          unit_price: p.price,
+          total_price: p.price * (p.quantity || 1) * item.quantity,
+        }));
+      }
+    });
+  } catch (error) {
+    console.log(error);
+  }
+}
 
 // === Checkout dành cho Customer ===
 async function checkoutCustomerService(
   customerId,
   cartItems,
   formData,
-  paymentMethod
+  paymentMethod,
+  shippingFee
 ) {
   const transaction = await sequelize.transaction();
 
@@ -26,7 +66,7 @@ async function checkoutCustomerService(
     const order = await Order.create(
       {
         customer_id: customerId,
-        total_amount: calculateCartTotal(cartItems),
+        total_amount: +calculateCartTotal(cartItems) + shippingFee,
         payment_method: paymentMethod,
         status: "pending",
         order_number: generateOrderNumber(),
@@ -50,38 +90,40 @@ async function checkoutCustomerService(
     );
 
     // 3. Lưu danh sách sản phẩm
-    const items = cartItems?.map((item) => ({
-      order_id: order.id,
-      product_id: item.id,
-      variant_id: item.variant_id,
-      quantity: item.quantity,
-      unit_price: item.price,
-      total_price: item.quantity * item.price,
-    }));
+    const items = buildOrderItems(cartItems, order.id);
     await OrderItem.bulkCreate(items, { transaction });
 
     // 4. Tạo bản ghi Payment
-    const payment = await Payment.create(
+    await Payment.create(
       {
         order_id: order.id,
         payment_method: paymentMethod,
-        status: paymentMethod === "cod" ? "pending" : "initiated",
+        status: "pending",
+        amount: order.total_amount,
       },
       { transaction }
     );
+
+    // 5. Commit transaction
     await transaction.commit();
-    // 5. Nếu là online payment thì tạo session thanh toán
+
+    // 6. Xử lý thanh toán
     if (paymentMethod !== "cod") {
       const paymentSession = await initiatePayment(order);
       return { success: true, paymentSession };
     }
 
-    // 6. Nếu COD thì xác nhận luôn
+    // COD → xác nhận luôn
     await updateOrderStatus(order.id, "confirmed");
+    await Payment.update(
+      { status: "paid", paid_at: new Date() },
+      { where: { order_id: order.id } }
+    );
+
     return { success: true, orderId: order.id };
   } catch (err) {
     await transaction.rollback();
-    console.error("Checkout Customer Error:", err);
+    console.log("Checkout Customer Error:", err);
     return { success: false, message: err.message };
   }
 }
@@ -91,7 +133,8 @@ async function checkoutGuestService(
   guestSessionId,
   cartItems,
   formData,
-  paymentMethod
+  paymentMethod,
+  shippingFee
 ) {
   const transaction = await sequelize.transaction();
 
@@ -100,7 +143,7 @@ async function checkoutGuestService(
     const order = await Order.create(
       {
         guest_session_id: guestSessionId,
-        total_amount: calculateCartTotal(cartItems),
+        total_amount: +calculateCartTotal(cartItems) + shippingFee,
         payment_method: paymentMethod,
         status: "pending",
         order_number: generateOrderNumber(),
@@ -124,45 +167,42 @@ async function checkoutGuestService(
     );
 
     // 3. Lưu danh sách sản phẩm
-    const items = cartItems?.map((item) => ({
-      order_id: order.id,
-      product_id: item.id,
-      quantity: item.quantity,
-      unit_price: item.price,
-      total_price: item.quantity * item.price,
-    }));
+    const items = buildOrderItems(cartItems, order.id);
     await OrderItem.bulkCreate(items, { transaction });
 
     // 4. Tạo Payment
-    const payment = await Payment.create(
+    await Payment.create(
       {
         order_id: order.id,
         payment_method: paymentMethod,
-        status: paymentMethod === "cod" ? "pending" : "initiated",
+        status: "pending",
+        amount: order.total_amount,
       },
       { transaction }
     );
+
+    // 5. Commit transaction
     await transaction.commit();
-    // 5. Thanh toán online → tạo phiên
+
+    // 6. Xử lý thanh toán
     if (paymentMethod !== "cod") {
       const paymentSession = await initiatePayment(order);
       return { success: true, paymentSession };
     }
 
-    // 6. COD → xác nhận luôn
+    // COD → xác nhận luôn
     await updateOrderStatus(order.id, "confirmed");
+    await Payment.update(
+      { status: "paid", paid_at: new Date() },
+      { where: { order_id: order.id } }
+    );
+
     return { success: true, orderId: order.id };
   } catch (err) {
     await transaction.rollback();
-    console.error("Checkout Guest Error:", err);
+    console.log("Checkout Guest Error:", err);
     return { success: false, message: err.message };
   }
-}
-
-// Helper tính tổng tiền
-function calculateCartTotal(cartItems) {
-  console.log("cartItems", cartItems);
-  return cartItems.reduce((sum, item) => sum + +item.price * +item.quantity, 0);
 }
 
 module.exports = {

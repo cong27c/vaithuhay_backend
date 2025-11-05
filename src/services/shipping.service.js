@@ -16,8 +16,9 @@ class ShippingService {
       }
 
       // 2️⃣ Tính tổng trọng lượng
-      const totalWeight = this.calculateTotalWeight(items);
+      const totalWeight = await this.calculateTotalWeight(items);
 
+      console.log("totalWeight", totalWeight);
       if (totalWeight <= 0) {
         return { success: false, message: "Trọng lượng sản phẩm không hợp lệ" };
       }
@@ -42,9 +43,26 @@ class ShippingService {
         isDefaultZone: zone.isDefault || false, // 👈 Thêm flag để biết là zone mặc định
       };
     } catch (error) {
-      console.error("Shipping calculation error:", error);
+      console.log("Shipping calculation error:", error);
       throwError(500, "Lỗi server khi tính phí vận chuyển");
     }
+  }
+
+  calculateTotalWeight(items) {
+    return items.reduce((total, item) => {
+      if (!item.isCombo) {
+        const itemWeight = item.weight || 0;
+        return total + itemWeight * (item.quantity || 1);
+      } else if (item.isCombo && Array.isArray(item.products)) {
+        const comboWeight = item.products.reduce((sum, p) => {
+          const w = p.weight || 0;
+          const q = p.quantity || 1;
+          return sum + w * q;
+        }, 0);
+        return total + comboWeight * (item.quantity || 1);
+      }
+      return total;
+    }, 0);
   }
 
   // Tìm shipping zone với fallback
@@ -121,27 +139,6 @@ class ShippingService {
         ],
       },
     ];
-  }
-
-  calculateTotalWeight(items) {
-    return items.reduce((total, item) => {
-      if (!item.checked) return total;
-
-      if (!item.isCombo) {
-        const itemWeight = item.weight || 0;
-        return total + itemWeight * item.quantity;
-      } else if (item.isCombo && Array.isArray(item.products)) {
-        const comboWeight = item.products.reduce((sum, p) => {
-          if (!p.checked) return sum;
-          const w = p.weight || 0;
-          const q = p.quantity || 1;
-          return sum + w * q;
-        }, 0);
-        return total + comboWeight * item.quantity;
-      }
-
-      return total;
-    }, 0);
   }
 
   async getAvailableMethods(zoneId, totalWeight) {

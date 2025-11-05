@@ -39,8 +39,29 @@ const refresh = async (req, res) => {
     return error(res, 401, err.message);
   }
 };
+const adminLogout = async (req, res) => {
+  try {
+    // Lấy refresh_token từ cookie (BE lưu)
+    const refreshToken = req.cookies.refresh_token;
+
+    // Gọi service logout
+    const result = await authService.logout(refreshToken);
+
+    // Clear cookie refresh_token ở BE
+    res.clearCookie("refresh_token");
+
+    return success(res, 200, {
+      message: "Đăng xuất admin thành công",
+      success: result,
+    });
+  } catch (err) {
+    console.error("Admin logout error:", err);
+    return error(res, 500, "Lỗi khi đăng xuất admin");
+  }
+};
 
 module.exports = {
   adminStaffLogin, // Chỉ cần 1 hàm duy nhất
   refresh,
+  adminLogout,
 };

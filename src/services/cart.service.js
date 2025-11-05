@@ -318,7 +318,7 @@ const cartService = {
       if (customerId) whereCart.customer_id = customerId;
       else if (sessionId) whereCart.session_id = sessionId;
       else return { success: false, error: "Missing user identifier" };
-      console.log("sessionId", sessionId);
+
       const cartItem = await CartItem.findOne({
         where: { id: parseInt(cartItemId) },
         include: [
@@ -333,7 +333,13 @@ const cartService = {
             model: ProductVariant,
             attributes: ["id", "price", "stock"],
             as: "ProductVariant",
-            required: true,
+            required: false,
+          },
+          {
+            model: Product, // Thêm include Product để lấy giá từ product nếu không có variant
+            attributes: ["id", "price"],
+            as: "Product",
+            required: false,
           },
         ],
       });
@@ -345,16 +351,36 @@ const cartService = {
         };
       }
 
-      // Kiểm tra số lượng tồn kho
-      if (quantity > cartItem.ProductVariant.stock) {
+      // Xác định giá và stock
+      let unitPrice = 0;
+      let availableStock = null;
+
+      if (cartItem.ProductVariant) {
+        // Nếu có ProductVariant, lấy giá và stock từ variant
+        unitPrice = parseFloat(cartItem.ProductVariant.price);
+        availableStock = cartItem.ProductVariant.stock;
+      } else if (cartItem.Product) {
+        // Nếu không có variant nhưng có Product, lấy giá từ product
+        unitPrice = parseFloat(cartItem.Product.price);
+        // Stock từ product hoặc có thể là null tùy logic của bạn
+        availableStock = cartItem.Product.stock || null;
+      } else {
+        // Nếu không có cả variant và product
         return {
           success: false,
-          error: `Only ${cartItem.ProductVariant.stock} items available in stock`,
+          error: "Product information not found for this cart item",
+        };
+      }
+
+      // Kiểm tra số lượng tồn kho nếu có thông tin stock
+      if (availableStock !== null && quantity > availableStock) {
+        return {
+          success: false,
+          error: `Only ${availableStock} items available in stock`,
         };
       }
 
       // Tính toán lại giá
-      const unitPrice = parseFloat(cartItem.ProductVariant.price);
       const discountAmount = parseFloat(cartItem.discount_amount) || 0;
       const totalPrice = unitPrice * quantity - discountAmount;
 
@@ -392,7 +418,7 @@ const cartService = {
         message: "Cart item quantity updated successfully",
       };
     } catch (error) {
-      console.error("Error in updateCartItemQuantity service:", error);
+      console.log("Error in updateCartItemQuantity service:", error);
       return {
         success: false,
         error: "Failed to update cart item quantity",

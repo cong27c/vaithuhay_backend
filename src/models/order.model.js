@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "order_id",
         as: "reviews",
       });
-      Order.hasMany(models.OrderItem, { foreignKey: "order_id" });
+      Order.hasMany(models.OrderItem, { foreignKey: "order_id", as: "items" });
       Order.belongsToMany(models.Product, {
         through: models.OrderItem,
         foreignKey: "order_id",
@@ -26,9 +26,19 @@ module.exports = (sequelize, DataTypes) => {
         as: "shipment",
       });
 
+      Order.belongsTo(models.Voucher, {
+        foreignKey: "voucher_id",
+        as: "voucher",
+      });
+
       Order.belongsTo(models.Address, {
         foreignKey: "address_id",
         as: "address",
+      });
+
+      Order.hasOne(models.OrderAddress, {
+        foreignKey: "order_id",
+        as: "orderAddress", // Phải khớp với `as` trong include
       });
     }
   }
@@ -37,6 +47,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
       customer_id: DataTypes.INTEGER,
+      guest_session_id: DataTypes.STRING,
       address_id: DataTypes.INTEGER,
       order_number: DataTypes.STRING(100),
       order_date: DataTypes.DATE,

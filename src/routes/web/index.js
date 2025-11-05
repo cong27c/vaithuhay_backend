@@ -16,6 +16,7 @@ const preOrderRoute = require("./preOrder.route");
 const orderRoute = require("./order.route");
 const comboRoute = require("./combo.route");
 const shippingRoute = require("./shipping.route");
+const pusherRoute = require("./pusher.route");
 
 router.use("/auth", authRoute);
 router.use("/collections", collectionRoute);
@@ -32,5 +33,6 @@ router.use("/preorder", preOrderRoute);
 router.use("/orders", orderRoute);
 router.use("/combos", comboRoute);
 router.use("/shipping", shippingRoute);
+router.use("/pusher", pusherRoute);
 
 module.exports = router;

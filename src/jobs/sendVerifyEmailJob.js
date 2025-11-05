@@ -21,6 +21,7 @@ async function sendVerifyEmailJob(job) {
     } else {
       mailToken = jwtService.generateAccessToken(
         user.id,
+        user.role,
         MAIL_SECRET,
         MAIL_EXPIRES_IN
       );

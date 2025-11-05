@@ -2,26 +2,44 @@ const {
   checkoutCustomerService,
   checkoutGuestService,
 } = require("@/services/checkout.service");
-
 exports.handleCheckout = async (req, res) => {
   try {
-    const { isGuest, cartItems, formData, paymentMethod } = req.body;
+    const { cartItems, formData, paymentMethod, shippingFee } = req.body;
     let result;
 
-    if (isGuest) {
-      result = await checkoutGuestService(
-        req.guestSession?.id,
+    const customerId = req.user?.customerId || null;
+    let sessionId;
+    if (!customerId) {
+      sessionId = req.guestSession?.id;
+      if (!sessionId) {
+        throwError(401, "Session ID required for guest users");
+      }
+    }
+
+    if (customerId) {
+      // Người dùng đã đăng nhập
+      result = await checkoutCustomerService(
+        customerId,
         cartItems,
         formData,
-        paymentMethod
+        paymentMethod,
+        shippingFee
+      );
+    } else if (sessionId) {
+      // Người dùng là khách
+      result = await checkoutGuestService(
+        sessionId,
+        cartItems,
+        formData,
+        paymentMethod,
+        shippingFee
       );
     } else {
-      result = await checkoutCustomerService(
-        req.user.id,
-        cartItems,
-        formData,
-        paymentMethod
-      );
+      // Không có thông tin người dùng
+      return res.status(400).json({
+        success: false,
+        message: "Không tìm thấy thông tin người dùng",
+      });
     }
 
     if (!result.success) return res.status(400).json(result);

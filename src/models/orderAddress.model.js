@@ -23,7 +23,7 @@ module.exports = (sequelize, DataTypes) => {
       ward: DataTypes.STRING(100),
       street_address: DataTypes.STRING(255),
       created_at: DataTypes.DATE,
-      updated_at: DataTypes.DATE,
+      // updated_at: DataTypes.DATE,
     },
     {
       sequelize,

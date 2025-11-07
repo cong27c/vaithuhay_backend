@@ -27,6 +27,12 @@ router.delete(
 );
 
 // 🔄 Product Variant routes
+
+router.get("/variants/:id", productController.getVariant);
+router.get(
+  "/variants/product/:productId",
+  productController.getProductVariantsByProduct
+);
 router.post("/:productId/variants", productController.createProductVariant);
 router.put("/variants/:variantId", productController.updateProductVariant);
 router.delete("/variants/:variantId", productController.deleteProductVariant);

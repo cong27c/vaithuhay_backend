@@ -11,6 +11,9 @@ const {
   PreorderTier,
   PreorderRegistration,
   PreorderSlot,
+  Collection,
+  sequelize,
+  CollectionProduct,
 } = require("@/models");
 const formatCurrency = require("@/utils/formatCurrency");
 const formatDate = require("@/utils/formatDate");
@@ -405,6 +408,106 @@ const productService = {
     if (!product) return null;
     await product.destroy();
     return product;
+  },
+  async getRelatedProducts(productId, limit = 4) {
+    try {
+      console.log("=== START getRelatedProducts ===");
+
+      // 1️⃣ Tìm collection của product hiện tại
+      const collectionProducts = await CollectionProduct.findAll({
+        where: { product_id: productId },
+        attributes: ["collection_id"],
+        raw: true,
+      });
+
+      const collectionIds = collectionProducts.map((cp) => cp.collection_id);
+
+      // 2️⃣ Lấy sản phẩm liên quan theo collection
+      const relatedByCollection = await Product.findAll({
+        include: [
+          {
+            model: Collection,
+            as: "collections",
+            where: { id: { [Op.in]: collectionIds } },
+            attributes: [],
+            through: { attributes: [] },
+            required: !!collectionIds.length, // chỉ join nếu có collection
+          },
+          {
+            model: ProductImage,
+            as: "mainImage",
+            required: false,
+            attributes: ["id", "image_url", "is_main"],
+          },
+          {
+            model: ProductDiscount,
+            as: "discount",
+            required: false,
+            attributes: ["discount_type", "discount_value", "status"],
+          },
+        ],
+        where: {
+          id: { [Op.ne]: productId },
+        },
+        attributes: ["id", "name", "slug", "price", "status"],
+        limit,
+        subQuery: false,
+        distinct: true,
+      });
+
+      let relatedProducts = [...relatedByCollection];
+      const foundCount = relatedProducts.length;
+
+      // 3️⃣ Nếu chưa đủ, bổ sung thêm sản phẩm ngẫu nhiên có id gần productId
+      if (foundCount < limit) {
+        const remaining = limit - foundCount;
+
+        const extraProducts = await Product.findAll({
+          where: {
+            id: {
+              [Op.and]: [
+                { [Op.ne]: productId },
+                // lấy các id gần đó (±20 là con số có thể chỉnh)
+                { [Op.between]: [productId - 20, productId + 20] },
+              ],
+            },
+          },
+          include: [
+            {
+              model: ProductImage,
+              as: "mainImage",
+              required: false,
+              attributes: ["id", "image_url", "is_main"],
+            },
+            {
+              model: ProductDiscount,
+              as: "discount",
+              required: false,
+              attributes: ["discount_type", "discount_value", "status"],
+            },
+          ],
+          attributes: ["id", "name", "slug", "price", "status"],
+          order: sequelize.literal("RAND()"), // random lấy ngẫu nhiên
+          limit: remaining,
+        });
+
+        // Tránh trùng id
+        const existingIds = new Set(relatedProducts.map((p) => p.id));
+        const uniqueExtras = extraProducts.filter(
+          (p) => !existingIds.has(p.id)
+        );
+
+        relatedProducts = [...relatedProducts, ...uniqueExtras];
+      }
+
+      console.log(
+        `✅ Tổng cộng ${relatedProducts.length}/${limit} sản phẩm gợi ý.`
+      );
+      return relatedProducts.slice(0, limit); // luôn trả đúng số lượng
+    } catch (error) {
+      console.error("❌ Lỗi trong getRelatedProducts:", error);
+      throw error;
+    }
   },
 };
 

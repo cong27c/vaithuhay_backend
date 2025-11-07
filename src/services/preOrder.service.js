@@ -23,6 +23,7 @@ const throwError = require("@/utils/throwError");
 
 class PreorderService {
   static async register(data, user, ip, userAgent, guestSession) {
+    console.log("data", data);
     const t = await sequelize.transaction();
     try {
       const { product_id, variant_id, tier_id, email, phone, username } = data;
@@ -71,12 +72,16 @@ class PreorderService {
           message: `Tier "${tier.name}" đã hết suất. Vui lòng chọn tier khác.`,
         };
       }
-
+      const customerId = user?.customerId || null;
       // 4️⃣ Kiểm tra trùng lặp (user hoặc guest)
       let existing;
-      if (user) {
+      if (customerId) {
         existing = await PreorderRegistration.findOne({
-          where: { campaign_id: campaign.id, product_id, customer_id: user.id },
+          where: {
+            campaign_id: campaign.id,
+            product_id,
+            customer_id: customerId,
+          },
           transaction: t,
         });
       } else if (guestSession) {
@@ -111,9 +116,9 @@ class PreorderService {
           product_id,
           variant_id,
           tier_id: tier.id,
-          customer_id: user ? user.id : null,
+          customer_id: customerId ? customerId : null,
           guest_session_id: guestSession ? guestSession.id : null,
-          email: user?.email || email,
+          email,
           phone,
           username,
           ip_address: ip,
@@ -402,6 +407,25 @@ class PreorderService {
         }
       }
 
+      let unitPrice;
+
+      if (preorder.variant_id) {
+        // Lấy giá từ ProductVariant
+        const productVariant = await ProductVariant.findOne({
+          where: { id: preorder.variant_id },
+          transaction: t,
+        });
+
+        if (!productVariant) {
+          throw throwError(404, "Không tìm thấy thông tin biến thể sản phẩm");
+        }
+
+        unitPrice = productVariant.price;
+      } else {
+        // Lấy giá từ Product
+        unitPrice = preorder.product.price; // preorder.product đã được include
+      }
+      console.log("unitPrice", unitPrice);
       // 🔹 Tạo CartItem mới
       const newItem = await CartItem.create(
         {
@@ -411,8 +435,9 @@ class PreorderService {
           tier_id: preorder.tier.id,
           variant_id: preorder.variant_id,
           quantity: 1,
-          unit_price: preorder.tier.price,
-          total_price: preorder.tier.price,
+          unit_price: unitPrice,
+          total_price: unitPrice,
+          discount_amount: preorder.tier.discount_percent,
         },
         { transaction: t }
       );

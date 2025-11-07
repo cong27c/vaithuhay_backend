@@ -14,7 +14,7 @@ const getVouchers = async (req, res) => {
 const applyVoucher = async (req, res) => {
   try {
     const customerId = req.user?.customerId || null;
-    const { voucherCode } = req.body;
+    const { voucherCode, cartItems } = req.body;
 
     let sessionId;
     if (!customerId) {
@@ -27,7 +27,8 @@ const applyVoucher = async (req, res) => {
     const result = await voucherService.applyVoucher(
       customerId,
       sessionId,
-      voucherCode
+      voucherCode,
+      cartItems
     );
 
     return success(res, 200, result);

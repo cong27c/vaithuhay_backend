@@ -7,9 +7,6 @@ const addToCart = async (req, res) => {
     const { productId, variantId, quantity } = req.body;
     const customerId = req.user?.customerId || null;
 
-    console.log("productId", productId);
-    console.log("variantId", variantId);
-    console.log("quantity", quantity);
     // Lấy thông tin thiết bị
     const userAgent = req.headers["user-agent"];
     const ipAddress = req.ip;
@@ -176,8 +173,6 @@ const addComboToCart = async (req, res) => {
   try {
     const { comboId, quantity } = req.body;
     const customerId = req.user?.customerId || null;
-    console.log("comboId", comboId);
-    console.log("quantity", quantity);
     // Lấy thông tin thiết bị
 
     const userAgent = req.headers["user-agent"];

@@ -139,8 +139,46 @@ const getPaymentStatus = async (orderId) => {
   };
 };
 
+const getCompletedOrders = async (productId, customerId, guestSessionId) => {
+  try {
+    const whereCondition = {
+      status: "confirmed",
+    };
+
+    if (customerId) {
+      whereCondition.customer_id = customerId;
+    } else if (guestSessionId) {
+      whereCondition.guest_session_id = guestSessionId;
+    } else {
+      throw new Error("Thiếu thông tin xác thực");
+    }
+
+    const orders = await Order.findAll({
+      where: whereCondition,
+      include: [
+        {
+          model: OrderItem,
+          as: "items",
+          where: { product_id: productId },
+          required: true,
+          attributes: [], // Chỉ cần check existence, không cần data
+        },
+      ],
+      attributes: ["id", "order_number", "order_date"], // Chỉ lấy các field cần thiết
+      order: [["order_date", "DESC"]],
+    });
+    console.log("orders", orders);
+
+    return orders;
+  } catch (error) {
+    console.log("Error in getCompletedOrderIds:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   getOrderById,
   checkOrderExists: checkOrderExists, // Sử dụng tên mới
   getPaymentStatus, // Xuất hàm mới
+  getCompletedOrders,
 };

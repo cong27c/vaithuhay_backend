@@ -166,13 +166,15 @@ const getByProductsSlug = async (slug) => {
       const notification = "Số lượng cực ít";
 
       return {
+        productId: p.id,
         name: p.name,
         image: p.images?.[0]?.image_url || null,
         desc,
         notification,
         slug: p.slug,
-        price: formatCurrency(originalPrice),
-        sale: discountPercent ? `${discountPercent}%` : null,
+        price: formatCurrency(discountedPrice),
+        discount: `${discountPercent}` || null,
+        originalPrice,
         longDescription: p.detail?.long_description || null, // ✅ thêm trường này
       };
     });

@@ -144,18 +144,33 @@ const cartService = {
         unitPrice = product.price;
       }
 
-      // 4️⃣ Thêm hoặc cập nhật CartItem
-      // Xây dựng điều kiện WHERE linh hoạt
+      // 4️⃣ Lấy thông tin giảm giá từ ProductDiscount
+      let discountAmount = 0;
+
+      const currentDate = new Date().toISOString().split("T")[0]; // Lấy ngày hiện tại dạng YYYY-MM-DD
+
+      const productDiscount = await ProductDiscount.findOne({
+        where: {
+          product_id: productId,
+          discount_type: "percent",
+          status: "active",
+          start_date: { [Op.lte]: currentDate }, // Ngày bắt đầu <= hiện tại
+          end_date: { [Op.gte]: currentDate }, // Ngày kết thúc >= hiện tại
+        },
+        order: [["discount_value", "DESC"]], // Ưu tiên giảm giá cao nhất nếu có nhiều
+      });
+
+      discountAmount = productDiscount.discount_value;
+
+      // 5️⃣ Thêm hoặc cập nhật CartItem
       const cartItemWhere = {
         cart_id: cart.id,
         product_id: productId,
       };
 
-      // Chỉ thêm variant_id vào điều kiện nếu có giá trị
       if (variantId) {
         cartItemWhere.variant_id = variantId;
       } else {
-        // Nếu không có variantId, tìm các cart item có variant_id là null
         cartItemWhere.variant_id = null;
       }
 
@@ -165,25 +180,29 @@ const cartService = {
 
       if (cartItem) {
         cartItem.quantity += quantity;
-        cartItem.total_price = cartItem.quantity * unitPrice;
+        cartItem.discount_amount = discountAmount;
+        cartItem.total_price = (unitPrice - discountAmount) * cartItem.quantity;
         await cartItem.save();
       } else {
         cartItem = await CartItem.create({
           cart_id: cart.id,
           product_id: productId,
-          variant_id: variantId || null, // Đảm bảo variant_id là null nếu không có
+          variant_id: variantId || null,
           quantity,
           unit_price: unitPrice,
-          discount_amount: 0,
-          total_price: unitPrice * quantity,
+          discount_amount: discountAmount,
+          total_price: (unitPrice - discountAmount) * quantity,
         });
       }
 
       await this.recalculateCartTotals(cart.id);
 
-      return { cart, cartItem };
+      return {
+        cart,
+        cartItem,
+      };
     } catch (error) {
-      console.error("Error in addItem:", error);
+      console.log("Error in addItem:", error);
       throwError("Failed to add item to cart", 500);
     }
   },
@@ -218,7 +237,7 @@ const cartService = {
           },
           {
             model: ProductVariant,
-            attributes: ["id", "name", "image_url"],
+            attributes: ["id", "name", "image_url", "price"],
             required: false,
             as: "ProductVariant",
           },
@@ -268,16 +287,34 @@ const cartService = {
             }
           }
 
+          // --- Tính toán giá ---
+          const discountPercentage = parseFloat(item.discount_amount) || 0;
+
+          // Giá gốc: lấy từ variant price hoặc unit_price
+          let originalPrice =
+            parseFloat(item.ProductVariant?.price) ||
+            parseFloat(item.unit_price) ||
+            0;
+
+          // Nếu có discount, tính giá sau discount
+          let price = originalPrice;
+          if (discountPercentage > 0) {
+            price = originalPrice * (1 - discountPercentage / 100);
+          }
+
           return {
             id: item.id,
+            productId: item.Product?.id,
             name: productName,
             slug: item.Product?.slug,
             weight: item.Product?.weight,
             variant: variantName,
-            price: parseFloat(item.unit_price) || 0,
+            originalPrice: Math.round(originalPrice), // Giá gốc
+            price: Math.round(price), // Giá sau discount
             quantity: item.quantity || 0,
             image, // luôn có giá trị
             checked: false,
+            discount: discountPercentage,
           };
         })
       );

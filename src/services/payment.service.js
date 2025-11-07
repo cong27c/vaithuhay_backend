@@ -53,7 +53,6 @@ async function initiatePayment(order) {
  * Sử dụng API Key Authentication thay vì HMAC Secret
  */
 async function processSePayWebhook(payload, headers) {
-  console.log("hello");
   const transaction = await sequelize.transaction();
   try {
     const txId = payload.id || payload.transactionId;

@@ -1,7 +1,6 @@
 const pusherService = require("@/services/pusher.service");
 
 const pusherAuth = async (req, res) => {
-  console.log(req.body);
   const { socket_id, channel_name } = req.body;
   const customerId = req.user?.customerId || null;
   let sessionId;
@@ -11,8 +10,6 @@ const pusherAuth = async (req, res) => {
       throwError(401, "Session ID required for guest users");
     }
   }
-  console.log("customerId", customerId);
-  console.log("sessionId", sessionId);
   try {
     const auth = await pusherService.authenticateChannel(
       socket_id,

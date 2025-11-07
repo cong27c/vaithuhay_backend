@@ -54,7 +54,6 @@ const checkTransactionExists = async (req, res) => {
 
 const handleWebhookController = async (req, res) => {
   try {
-    console.log("handleWebhookController hello");
     const result = await processSePayWebhook(req.body, req.headers);
 
     // REMOVE pusher triggers từ controller vì đã xử lý trong service
@@ -86,8 +85,51 @@ const handleWebhookController = async (req, res) => {
   }
 };
 
+const getReviewableOrders = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const customerId = req.user?.customerId || null;
+    let sessionId = null;
+
+    if (!customerId) {
+      sessionId = req.guestSession?.session_id;
+      if (!sessionId) {
+        return error(
+          res,
+          401,
+          "Unauthorized",
+          "Vui lòng đăng nhập để đánh giá"
+        );
+      }
+    }
+
+    if (!productId) {
+      return error(res, 400, "Thiếu thông tin", "Product ID là bắt buộc");
+    }
+
+    const orders = await orderService.getCompletedOrders(
+      parseInt(productId),
+      customerId,
+      sessionId
+    );
+
+    return success(
+      res,
+      200,
+      {
+        orders, // Chỉ trả về mảng orders với id, order_number, order_date
+      },
+      "Lấy danh sách đơn hàng có thể review thành công"
+    );
+  } catch (err) {
+    console.error("Error in getReviewableOrders:", err);
+    return error(res, 500, "Lỗi server", err.message);
+  }
+};
+
 module.exports = {
   getOrderById,
   checkTransactionExists,
   handleWebhookController,
+  getReviewableOrders,
 };

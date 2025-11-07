@@ -10,4 +10,6 @@ router.get("/:productId/blogs", productController.getBlogs);
 
 router.get("/:slug/variants", productController.getProductVariantsBySlug);
 
+router.get("/related/:productId", productController.getRelatedProducts);
+
 module.exports = router;

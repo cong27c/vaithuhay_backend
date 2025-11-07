@@ -4,7 +4,8 @@ const {
 } = require("@/services/checkout.service");
 exports.handleCheckout = async (req, res) => {
   try {
-    const { cartItems, formData, paymentMethod, shippingFee } = req.body;
+    const { cartItems, formData, paymentMethod, shippingFee, shippingInfo } =
+      req.body;
     let result;
 
     const customerId = req.user?.customerId || null;
@@ -23,7 +24,8 @@ exports.handleCheckout = async (req, res) => {
         cartItems,
         formData,
         paymentMethod,
-        shippingFee
+        shippingFee,
+        shippingInfo
       );
     } else if (sessionId) {
       // Người dùng là khách
@@ -32,7 +34,8 @@ exports.handleCheckout = async (req, res) => {
         cartItems,
         formData,
         paymentMethod,
-        shippingFee
+        shippingFee,
+        shippingInfo
       );
     } else {
       // Không có thông tin người dùng

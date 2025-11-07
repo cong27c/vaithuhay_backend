@@ -32,9 +32,7 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   try {
-    console.log("createProduct");
     const productData = req.body;
-    console.log("productData", req.body);
     const newProduct = await productService.createProduct(productData);
     return success(res, 201, newProduct, "Product created successfully");
   } catch (err) {
@@ -60,6 +58,72 @@ const deleteProduct = async (req, res) => {
     return success(res, 200, null, "Product deleted successfully");
   } catch (err) {
     return error(res, err.status || 500, err.message, err.errors);
+  }
+};
+
+const getVariant = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { includeAttributes, includeProduct } = req.query;
+
+    const variant = await productService.getProductVariant(parseInt(id), {
+      includeAttributes: includeAttributes === "true",
+      includeProduct: includeProduct === "true",
+    });
+
+    res.json({
+      success: true,
+      data: variant,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const getProductVariantsByProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    // Validate productId
+    if (!productId || isNaN(parseInt(productId))) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product ID",
+      });
+    }
+
+    const options = {
+      includeAttributes: req.query.includeAttributes === "true",
+      includeProduct: req.query.includeProduct === "true",
+    };
+
+    const variants = await productService.getProductVariantsByProduct(
+      parseInt(productId),
+      options
+    );
+
+    res.status(200).json({
+      success: true,
+      data: variants,
+      message: "Product variants retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Get product variants error:", error);
+
+    if (error.message.includes("No product variants found")) {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
   }
 };
 
@@ -109,5 +173,7 @@ module.exports = {
   deleteProduct,
   createProductVariant,
   updateProductVariant,
+  getVariant,
   deleteProductVariant,
+  getProductVariantsByProduct,
 };

@@ -36,8 +36,6 @@ const uploadProductImage = async (req, res) => {
 // Upload ảnh (chính hoặc phụ)
 const uploadByProduct = async (req, res) => {
   try {
-    console.log("hello");
-    console.log("req.file", req.file);
     const { productId } = req.params;
     const isMain = req.body.is_main === "true" || req.body.is_main === true;
 

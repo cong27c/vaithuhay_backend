@@ -24,6 +24,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      cloudinary_public_id: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      metadata: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
       media_url: {
         type: DataTypes.STRING(500),
         allowNull: false,

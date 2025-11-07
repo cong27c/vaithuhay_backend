@@ -35,7 +35,6 @@ const adminAuthMiddleware = async (req, res, next) => {
       id: decoded.userId,
       role: decoded.role,
     };
-    console.log("hello");
 
     next();
   } catch (err) {

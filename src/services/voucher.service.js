@@ -18,34 +18,11 @@ const voucherService = {
 
     try {
       for (const cond of voucher.conditions) {
-        // Lấy trực tiếp từ các cột riêng biệt
         const condition_type = cond.condition_type;
         const operator = cond.operator;
-        let value = cond.condition_value;
+        let value = cond.condition_value; // Sequelize đã tự động parse JSON
 
-        console.log("Raw condition:", { condition_type, operator, value });
-
-        // Parse value từ string sang đúng kiểu dữ liệu
-        if (value) {
-          try {
-            // Thử parse JSON nếu value là array/object string
-            if (value.startsWith("[") || value.startsWith("{")) {
-              value = JSON.parse(value);
-            }
-            // Parse số
-            else if (!isNaN(value)) {
-              value = parseFloat(value);
-            }
-            // Parse boolean
-            else if (value === "true" || value === "false") {
-              value = value === "true";
-            }
-          } catch (error) {
-            console.log("Parse value error, using raw value:", value);
-          }
-        }
-
-        console.log("Parsed condition:", { condition_type, operator, value });
+        console.log("Condition:", { condition_type, operator, value });
 
         if (!condition_type) {
           console.warn("Missing condition_type for condition:", cond.id);
@@ -56,8 +33,7 @@ const voucherService = {
         switch (condition_type) {
           case "min_order_value": {
             const subtotal = cartItems.reduce(
-              (sum, item) =>
-                sum + (item.unit_price || 0) * (item.quantity || 0),
+              (sum, item) => sum + (item.price || 0) * (item.quantity || 0),
               0
             );
             console.log(`Min order check: ${subtotal} ${operator} ${value}`);
@@ -71,10 +47,10 @@ const voucherService = {
           }
 
           case "product": {
-            // value là mảng product_ids [7,8,9]
+            // value đã được parse thành mảng [101,102,103]
             const productIds = Array.isArray(value) ? value : [value];
             const hasProduct = cartItems.some((item) =>
-              productIds.includes(item.product_id)
+              productIds.includes(item.product_id || item.id)
             );
             console.log(
               `Product check: looking for ${productIds}, found: ${hasProduct}`
@@ -90,69 +66,138 @@ const voucherService = {
           }
 
           case "collection": {
-            // value là mảng collection_ids [11]
+            // value có thể là mảng hoặc số lẻ
             const collectionIds = Array.isArray(value) ? value : [value];
 
-            // Kiểm tra từng sản phẩm trong giỏ hàng
-            const hasCollection = cartItems.some((item) => {
-              if (!item.Product || !item.Product?.collections) return false;
+            // Lấy danh sách slug từ giỏ hàng
+            const cartProductSlug = cartItems.map((item) => item.slug);
 
-              return item.Product.collections.some((collection) =>
-                collectionIds.includes(collection.id)
-              );
-            });
-
-            console.log(
-              `Collection check: looking for ${collectionIds}, found: ${hasCollection}`
-            );
-
-            if (!hasCollection) {
+            if (cartProductSlug.length === 0) {
               throw new Error(
                 "Không có sản phẩm nào trong giỏ hàng thuộc collection yêu cầu"
               );
             }
+
+            // Lấy danh sách sản phẩm trong collection tương ứng
+            const productsInCollections = await Product.findAll({
+              where: { slug: cartProductSlug },
+              include: [
+                {
+                  model: Collection,
+                  as: "collections",
+                  through: { attributes: [] },
+                  where: { id: collectionIds },
+                },
+              ],
+            });
+
+            console.log(
+              `Collection check: found ${productsInCollections.length} products in collections ${collectionIds}`
+            );
+
+            // 🧩 Kiểm tra: tất cả sản phẩm trong giỏ đều thuộc collection
+            if (productsInCollections.length !== cartProductSlug.length) {
+              throw new Error(
+                "Một hoặc nhiều sản phẩm trong giỏ hàng không thuộc collection yêu cầu"
+              );
+            }
+
             break;
           }
 
           case "first_order": {
             if (operator === "=" && value === true) {
-              const previousOrders = await Order.count({
-                where: { customer_id: customerId },
-              });
-              console.log(
-                `First order check: previous orders = ${previousOrders}`
-              );
+              if (customerId) {
+                const { Order } = require("../models"); // Import model Order
+                const previousOrders = await Order.count({
+                  where: { customer_id: customerId },
+                });
+                console.log(
+                  `First order check: previous orders = ${previousOrders}`
+                );
 
-              if (previousOrders > 0)
-                throw new Error("Mã chỉ áp dụng cho đơn hàng đầu tiên");
+                if (previousOrders > 0)
+                  throw new Error("Mã chỉ áp dụng cho đơn hàng đầu tiên");
+              } else {
+                throw new Error(
+                  "Mã chỉ áp dụng cho đơn hàng đầu tiên - vui lòng đăng nhập"
+                );
+              }
             }
             break;
           }
 
           case "time_frame": {
-            // value là object {start: "20:00", end: "22:00"}
-            let timeData = value;
-            if (typeof value === "string") {
-              try {
-                // Sửa lỗi JSON string (dấu " thay vì ')
-                const fixedJson = value.replace(/'/g, '"');
-                timeData = JSON.parse(fixedJson);
-              } catch (error) {
-                console.log("Parse time_frame error:", error);
-              }
-            }
-
-            if (timeData && timeData.start && timeData.end) {
+            // value đã được parse thành object {start: "20:00", end: "22:00"}
+            if (value && value.start && value.end) {
               const now = new Date();
-              const currentTime = now.getHours() + ":" + now.getMinutes();
+              const currentHours = now.getHours().toString().padStart(2, "0");
+              const currentMinutes = now
+                .getMinutes()
+                .toString()
+                .padStart(2, "0");
+              const currentTime = `${currentHours}:${currentMinutes}`;
+
               console.log(
-                `Time frame check: current=${currentTime}, allowed=${timeData.start}-${timeData.end}`
+                `Time frame check: current=${currentTime}, allowed=${value.start}-${value.end}`
               );
 
-              if (currentTime < timeData.start || currentTime > timeData.end) {
+              if (currentTime < value.start || currentTime > value.end) {
                 throw new Error(
-                  `Mã chỉ áp dụng từ ${timeData.start} đến ${timeData.end}`
+                  `Mã chỉ áp dụng từ ${value.start} đến ${value.end}`
                 );
+              }
+            }
+            break;
+          }
+
+          case "category": {
+            // Xử lý condition category tương tự collection
+            const categoryIds = Array.isArray(value) ? value : [value];
+            const cartProductIds = cartItems.map(
+              (item) => item.product_id || item.id
+            );
+
+            if (cartProductIds.length === 0) {
+              throw new Error(
+                "Không có sản phẩm nào trong giỏ hàng thuộc danh mục yêu cầu"
+              );
+            }
+
+            const { Product, Category } = require("../models");
+
+            const productsInCategories = await Product.findAll({
+              where: { id: cartProductIds },
+              include: [
+                {
+                  model: Category,
+                  as: "categories",
+                  through: { attributes: [] },
+                  where: { id: categoryIds },
+                },
+              ],
+            });
+
+            console.log(
+              `Category check: found ${productsInCategories.length} products in categories ${categoryIds}`
+            );
+
+            if (productsInCategories.length === 0) {
+              throw new Error(
+                "Không có sản phẩm nào trong giỏ hàng thuộc danh mục yêu cầu"
+              );
+            }
+            break;
+          }
+
+          case "user_group": {
+            if (customerId) {
+              const { Customer } = require("../models");
+              const customer = await Customer.findByPk(customerId);
+              const userGroups = Array.isArray(value) ? value : [value];
+
+              if (customer && !userGroups.includes(customer.user_group)) {
+                throw new Error("Mã không áp dụng cho nhóm khách hàng của bạn");
               }
             }
             break;
@@ -168,11 +213,12 @@ const voucherService = {
     }
   },
 
-  async applyVoucher(customerId, sessionId, voucherCode) {
+  async applyVoucher(customerId, sessionId, voucherCode, cartItems) {
     try {
       console.log("customerId", customerId);
       console.log("sessionId", sessionId);
       console.log("voucherCode", voucherCode);
+      console.log("cartItems", cartItems);
 
       // 1. Lấy voucher
       const voucher = await Voucher.findOne({
@@ -192,62 +238,8 @@ const voucherService = {
         };
       }
 
-      // 2. Lấy giỏ hàng dựa trên customerId hoặc sessionId
-      let cart;
-      if (customerId) {
-        cart = await Cart.findOne({
-          where: { customer_id: customerId, status: "active" },
-          include: [
-            {
-              model: CartItem,
-              as: "items",
-              include: [
-                {
-                  model: Product,
-                  as: "Product",
-                  include: [
-                    {
-                      model: Collection,
-                      as: "collections",
-                      through: { attributes: [] },
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        });
-      } else if (sessionId) {
-        cart = await Cart.findOne({
-          where: { session_id: sessionId, status: "active" },
-          include: [
-            {
-              model: CartItem,
-              as: "items",
-              include: [
-                {
-                  model: Product,
-                  as: "Product",
-                  include: [
-                    {
-                      model: Collection,
-                      as: "collections",
-                      through: { attributes: [] },
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        });
-      } else {
-        return {
-          success: false,
-          message: "Không tìm thấy giỏ hàng: cần customerId hoặc sessionId",
-        };
-      }
-
-      if (!cart || !cart.items.length) {
+      // 2. Kiểm tra giỏ hàng
+      if (!cartItems || !cartItems.length) {
         return {
           success: false,
           message: "Giỏ hàng trống",
@@ -255,11 +247,11 @@ const voucherService = {
       }
 
       // 3. Kiểm tra điều kiện voucher
-      await this.checkVoucherConditions(voucher, customerId, cart.items);
+      await this.checkVoucherConditions(voucher, customerId, cartItems);
 
-      // 4. Tính subtotal
-      const subtotal = cart.items.reduce(
-        (sum, item) => sum + item.unit_price * item.quantity,
+      // 4. Tính subtotal từ cartItems
+      const subtotal = cartItems.reduce(
+        (sum, item) => sum + item.price * item.quantity,
         0
       );
 

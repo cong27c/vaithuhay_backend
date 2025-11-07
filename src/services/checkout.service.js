@@ -4,6 +4,7 @@ const {
   OrderItem,
   Payment,
   sequelize,
+  Shipment,
 } = require("@/models");
 const { updateOrderStatus } = require("./orderStatus.service");
 const { initiatePayment } = require("./payment.service");
@@ -20,34 +21,62 @@ function calculateCartTotal(cartItems) {
 
 // === Helper build OrderItem từ cartItems (hỗ trợ combo và sản phẩm đơn lẻ) ===
 function buildOrderItems(cartItems, orderId) {
+  console.log(cartItems);
   try {
     return cartItems.flatMap((item) => {
+      // 🧩 Nếu không phải combo → xử lý như bình thường
       if (!item.isCombo) {
-        // Sản phẩm đơn lẻ
         return [
           {
             order_id: orderId,
-            product_id: item.id,
+            product_id: item.productId,
             variant_id: item.variant_id || null,
             quantity: item.quantity,
             unit_price: item.price,
-            total_price: item.price * item.quantity,
+            discount_amount: item.discountValue || 0,
+            total_price:
+              (item.price - (item.discountValue || 0)) * item.quantity,
           },
         ];
-      } else {
-        // Combo → tách thành nhiều sản phẩm
-        return item.products.map((p) => ({
+      }
+
+      // 🎁 Nếu là combo
+      const comboDiscount = item.discountValue || 0;
+      const comboQuantity = item.quantity;
+
+      // 1️⃣ Tính tổng giá gốc của combo (chưa giảm)
+      const totalOriginal = item.products.reduce(
+        (sum, p) => sum + p.price * (p.quantity || 1),
+        0
+      );
+
+      // 2️⃣ Tính tỷ lệ giảm giá (phân bổ discount theo tỉ lệ giá gốc)
+      const discountRate =
+        totalOriginal > 0 ? comboDiscount / totalOriginal : 0;
+
+      // 3️⃣ Tạo các order item con, mỗi item có phần giảm giá tương ứng
+      return item.products.map((p) => {
+        const baseQty = (p.quantity || 1) * comboQuantity;
+        const baseTotal = p.price * baseQty;
+
+        // Phần giảm tương ứng theo tỷ lệ
+        const distributedDiscount = baseTotal * discountRate;
+        const totalAfterDiscount = baseTotal - distributedDiscount;
+
+        return {
           order_id: orderId,
           product_id: p.id,
           variant_id: p.variant_id || null,
-          quantity: (p.quantity || 1) * item.quantity, // nhân với số lượng combo
+          quantity: baseQty,
           unit_price: p.price,
-          total_price: p.price * (p.quantity || 1) * item.quantity,
-        }));
-      }
+          discount_amount: distributedDiscount,
+          total_price: totalAfterDiscount,
+        };
+      });
     });
   } catch (error) {
-    console.log(error);
+    console.error("buildOrderItems error:", error);
+    return [];
   }
 }
 
@@ -100,6 +129,20 @@ async function checkoutCustomerService(
         payment_method: paymentMethod,
         status: "pending",
         amount: order.total_amount,
+      },
+      { transaction }
+    );
+
+    // === THÊM PHẦN TẠO SHIPMENT ===
+    await Shipment.create(
+      {
+        order_id: order.id,
+        carrier: formData.carrier || "default_carrier", // Lấy từ formData hoặc giá trị mặc định
+        tracking_code: generateTrackingCode(), // Hàm tạo mã tracking
+        status: "waiting",
+        shipping_fee: shippingFee,
+        created_at: new Date(),
+        updated_at: new Date(),
       },
       { transaction }
     );
@@ -181,6 +224,20 @@ async function checkoutGuestService(
       { transaction }
     );
 
+    // === THÊM PHẦN TẠO SHIPMENT ===
+    await Shipment.create(
+      {
+        order_id: order.id,
+        carrier: formData.carrier || "default_carrier",
+        tracking_code: generateTrackingCode(),
+        status: "waiting",
+        shipping_fee: shippingFee,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      { transaction }
+    );
+
     // 5. Commit transaction
     await transaction.commit();
 
@@ -203,6 +260,13 @@ async function checkoutGuestService(
     console.log("Checkout Guest Error:", err);
     return { success: false, message: err.message };
   }
+}
+
+// === Hàm hỗ trợ tạo mã tracking ===
+function generateTrackingCode() {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substr(2, 5);
+  return `TRK${timestamp}${random}`.toUpperCase();
 }
 
 module.exports = {

@@ -87,7 +87,7 @@ const getProductsByCollectionSlug = async (slug, page = 1, limit = 8, sort) => {
       return {
         productId: p.id,
         name: p.name,
-        link: p.slug,
+        slug: p.slug,
         date: discount?.end_date
           ? `Chiến dịch kết thúc: ${format(
               new Date(discount.end_date),

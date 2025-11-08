@@ -22,12 +22,14 @@ const register = async (data, res) => {
       first_name: data.firstName,
       last_name: data.lastName,
       username: data.email?.split("@")[0],
-      role: data.role || "customer", // Thêm role
+      role: data.role || "customer",
     });
 
-    // Chỉ tạo customer nếu là customer
+    let newCustomer = null;
+    let newCart = null;
+
     if (!data.role || data.role === "customer") {
-      const newCustomer = await Customer.create({
+      newCustomer = await Customer.create({
         user_id: newUser.id,
         first_name: data.firstName,
         last_name: data.lastName,
@@ -38,8 +40,7 @@ const register = async (data, res) => {
         throw new Error("Không thể tạo customer.");
       }
 
-      // Tạo cart chỉ cho customer
-      const newCart = await Cart.create({
+      newCart = await Cart.create({
         customer_id: newCustomer.id,
         status: "active",
         total_amount: 0,
@@ -58,10 +59,9 @@ const register = async (data, res) => {
         "Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.",
       userId: newUser.id,
       role: newUser.role,
-      // Chỉ trả về customerId và cartId nếu là customer
       ...(newUser.role === "customer" && {
-        customerId: newCustomer.id,
-        cartId: newCart.id,
+        customerId: newCustomer?.id,
+        cartId: newCart?.id,
       }),
     };
   } catch (error) {

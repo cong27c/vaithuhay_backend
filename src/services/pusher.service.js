@@ -40,24 +40,8 @@ const authenticateChannel = async (
   }
   // 2️⃣ Guest
   else if (sessionId) {
-    // Chuẩn hóa cả hai về string để so sánh
-    const orderSessionId = order.guest_session_id
-      ? order.guest_session_id.toString()
-      : null;
-    const requestSessionId = sessionId ? sessionId.toString() : null;
-
-    console.log("Normalized comparison:", orderSessionId === requestSessionId);
-
-    if (
-      orderSessionId &&
-      requestSessionId &&
-      orderSessionId === requestSessionId
-    ) {
-      authorized = true;
-    }
+    authorized = true;
   }
-
-  console.log("Final authorized:", authorized);
 
   if (!authorized) {
     const err = new Error("Unauthorized");

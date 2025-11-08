@@ -1,7 +1,10 @@
 const { success, error } = require("@/utils/response");
 const throwError = require("@/utils/throwError");
 const orderService = require("@/services/order.service");
-const { processSePayWebhook } = require("@/services/payment.service");
+const {
+  processSePayWebhook,
+  getPaymentByOrderId,
+} = require("@/services/payment.service");
 
 // 🟢 Lấy chi tiết đơn hàng (dùng để hiển thị QR code)
 const getOrderById = async (req, res) => {
@@ -124,9 +127,29 @@ const getReviewableOrders = async (req, res) => {
   }
 };
 
+const getPaymentByOrderIdController = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const result = await getPaymentByOrderId(parseInt(orderId));
+
+    if (!result.success) {
+      return res.status(404).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("getPaymentByOrderIdController error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+    });
+  }
+};
+
 module.exports = {
   getOrderById,
   checkTransactionExists,
   handleWebhookController,
   getReviewableOrders,
+  getPaymentByOrderIdController,
 };

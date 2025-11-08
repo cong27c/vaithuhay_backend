@@ -96,7 +96,6 @@ async function checkoutCustomerService(
       {
         customer_id: customerId,
         total_amount: +calculateCartTotal(cartItems) + shippingFee,
-        payment_method: paymentMethod,
         status: "pending",
         order_number: generateOrderNumber(),
       },
@@ -126,7 +125,7 @@ async function checkoutCustomerService(
     await Payment.create(
       {
         order_id: order.id,
-        payment_method: paymentMethod,
+        method: paymentMethod,
         status: "pending",
         amount: order.total_amount,
       },
@@ -187,7 +186,6 @@ async function checkoutGuestService(
       {
         guest_session_id: guestSessionId,
         total_amount: +calculateCartTotal(cartItems) + shippingFee,
-        payment_method: paymentMethod,
         status: "pending",
         order_number: generateOrderNumber(),
       },
@@ -217,7 +215,7 @@ async function checkoutGuestService(
     await Payment.create(
       {
         order_id: order.id,
-        payment_method: paymentMethod,
+        method: paymentMethod,
         status: "pending",
         amount: order.total_amount,
       },

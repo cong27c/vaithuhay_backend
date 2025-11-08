@@ -160,6 +160,24 @@ async function checkTransactionDuplicate(txId) {
   }
 }
 
+async function getPaymentByOrderId(orderId) {
+  try {
+    const payment = await Payment.findOne({
+      where: { order_id: orderId },
+      order: [["created_at", "DESC"]],
+    });
+
+    if (!payment) {
+      return { success: false, payment: null };
+    }
+
+    return { success: true, payment };
+  } catch (error) {
+    console.error("getPaymentByOrderId error:", error);
+    throw error;
+  }
+}
+
 // Lưu thông tin giao dịch
 async function saveTransaction(data, transaction = null) {
   try {
@@ -211,4 +229,5 @@ module.exports = {
   initiatePayment,
   processSePayWebhook,
   checkTransactionDuplicate,
+  getPaymentByOrderId,
 };

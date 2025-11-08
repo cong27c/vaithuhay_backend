@@ -53,6 +53,7 @@ async function initiatePayment(order) {
  * Sử dụng API Key Authentication thay vì HMAC Secret
  */
 async function processSePayWebhook(payload, headers) {
+  console.log("Chạy vào processSePayWebhook");
   const transaction = await sequelize.transaction();
   try {
     const txId = payload.id || payload.transactionId;
@@ -62,10 +63,17 @@ async function processSePayWebhook(payload, headers) {
     // Lấy orderId từ content
     const match = content.match(/DH(\d+)/i);
     if (!match) throw new Error("order_id_not_found");
+    console.log("match", match);
     const orderId = parseInt(match[1], 10);
+    console.log("orderId", orderId);
 
     const order = await Order.findByPk(orderId, { transaction });
-    if (!order) throw new Error("order_not_found");
+    if (!order) {
+      throw new Error("order_not_found", orderId);
+    }
+    console.log("order", order);
+
+    // if (!order) throw new Error("order_not_found");
 
     // Kiểm tra trùng giao dịch
     const exists = await Payment.findOne({

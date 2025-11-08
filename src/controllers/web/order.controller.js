@@ -56,9 +56,6 @@ const handleWebhookController = async (req, res) => {
   try {
     const result = await processSePayWebhook(req.body, req.headers);
 
-    // REMOVE pusher triggers từ controller vì đã xử lý trong service
-    // Giữ lại error handling nếu cần
-
     return success(res, 200, {
       success: true,
       message: "Webhook processed successfully",

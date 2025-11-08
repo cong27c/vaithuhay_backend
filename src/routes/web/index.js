@@ -17,6 +17,7 @@ const orderRoute = require("./order.route");
 const comboRoute = require("./combo.route");
 const shippingRoute = require("./shipping.route");
 const pusherRoute = require("./pusher.route");
+const webhookRoute = require("./webhook.route");
 
 router.use("/auth", authRoute);
 router.use("/collections", collectionRoute);
@@ -34,5 +35,6 @@ router.use("/orders", orderRoute);
 router.use("/combos", comboRoute);
 router.use("/shipping", shippingRoute);
 router.use("/pusher", pusherRoute);
+router.use("/webhook", webhookRoute);
 
 module.exports = router;

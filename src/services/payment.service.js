@@ -7,6 +7,10 @@ const SEPAY_API_KEY = process.env.SEPAY_API_KEY; // từ SePay
 const RECEIVER_BANK_ACCOUNT = process.env.RECEIVER_BANK_ACCOUNT; // số tài khoản bạn nhận tiền
 const RECEIVER_BANK_SHORT = process.env.RECEIVER_BANK_SHORT; // mã ngân hàng short name theo SePay
 
+console.log("Checking env in production:");
+console.log("PUSHER_APP_ID:", SEPAY_API_KEY ? "✅" : "❌");
+console.log("DATABASE_URL:", RECEIVER_BANK_ACCOUNT ? "✅" : "❌");
+console.log("SEPAY_WEBHOOK_SECRET:", RECEIVER_BANK_SHORT ? "✅" : "❌");
 /**
  * Khởi tạo thanh toán cho đơn hàng.
  * Trả về thông tin cần show cho KH (QR code URL hoặc tài khoản ngân hàng).

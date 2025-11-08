@@ -63,17 +63,14 @@ async function processSePayWebhook(payload, headers) {
     // Lấy orderId từ content
     const match = content.match(/DH(\d+)/i);
     if (!match) throw new Error("order_id_not_found");
-    console.log("match", match);
     const orderId = parseInt(match[1], 10);
-    console.log("orderId", orderId);
 
-    const order = await Order.findByPk(orderId, { transaction });
-    if (!order) {
-      throw new Error("order_not_found", orderId);
-    }
-    console.log("order", order);
+    const order = await Order.findByPk(orderId, {
+      include: [{ model: Payment, as: "payment" }],
+      transaction,
+    });
 
-    // if (!order) throw new Error("order_not_found");
+    if (!order) throw new Error("order_not_found");
 
     // Kiểm tra trùng giao dịch
     const exists = await Payment.findOne({
@@ -85,7 +82,7 @@ async function processSePayWebhook(payload, headers) {
       return { duplicate: true };
     }
 
-    // Tạo Payment nếu chưa có
+    // Tạo Payment record
     await Payment.create(
       {
         order_id: orderId,
@@ -100,24 +97,39 @@ async function processSePayWebhook(payload, headers) {
       { transaction }
     );
 
-    // Đồng bộ Order.status
-    await order.update({ status: "confirmed" }, { transaction });
+    // 🔥 QUAN TRỌNG: Cập nhật Order status (KHÔNG có payment_status)
+    await order.update(
+      {
+        status: "confirmed", // Chỉ cập nhật order status
+        // KHÔNG có payment_status vì nó không tồn tại trong Order model
+      },
+      { transaction }
+    );
 
     await transaction.commit();
 
-    // Trigger Pusher thông báo thanh toán
-    await pusher.trigger(`private-order-${orderId}`, "payment-success", {
-      orderId,
-      transactionId: txId,
-      amount: amountIn,
-      paidAt: new Date().toISOString(),
-      type: "payment_success",
-    });
+    // 🔥 Trigger Pusher events - ĐÃ SỬA DATA STRUCTURE
+    await Promise.all([
+      // Event thanh toán thành công
+      pusher.trigger(`private-order-${orderId}`, "payment-success", {
+        orderId: order.id,
+        transactionId: txId,
+        paidAt: new Date().toISOString(),
+        amount: amountIn, // Số tiền thực tế thanh toán
+      }),
+
+      // Event cập nhật trạng thái order
+      pusher.trigger(`private-order-${orderId}`, "order-status-update", {
+        orderId: order.id,
+        status: "confirmed", // Chỉ order status
+        updatedAt: new Date().toISOString(),
+      }),
+    ]);
 
     return { success: true, orderId };
   } catch (err) {
     await transaction.rollback();
-    console.error("Webhook Error:", err);
+    console.log("Webhook Error:", err);
     throw err;
   }
 }

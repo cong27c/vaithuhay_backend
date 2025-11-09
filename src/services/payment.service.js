@@ -72,6 +72,7 @@ async function processSePayWebhook(payload, headers) {
       include: [{ model: Payment, as: "payment" }],
       transaction,
     });
+    console.log("order", order);
 
     if (!order) throw new Error("order_not_found");
 

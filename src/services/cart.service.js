@@ -160,7 +160,7 @@ const cartService = {
         order: [["discount_value", "DESC"]], // Ưu tiên giảm giá cao nhất nếu có nhiều
       });
 
-      discountAmount = productDiscount.discount_value;
+      discountAmount = productDiscount?.discount_value || null;
 
       // 5️⃣ Thêm hoặc cập nhật CartItem
       const cartItemWhere = {

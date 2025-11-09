@@ -146,3 +146,91 @@ Luồng chính Trạng thái Order Trạng thái Payment Kết quả hiển th�
 COD confirmed → shipping → completed pending → paid Trang “Mua thành công”
 Online Payment success paid → confirmed → completed paid Trang “Thanh toán thành công”
 Online Payment fail payment_failed failed Trang “Thanh toán thất bại”
+
+// NHỮNG ĐIỀU ĐÃ RÚT RA KHI BẢO VỆ
+
+- Nên có một bảng lưu thông tin sản phẩm khi order (giá , tên sản phẩm, voucher sản phẩm đã áp dụng )
+- check thời gian khả dụng voucher khi submit thanh toán
+- nên xóa sản phẩm trong giỏ hàng sau khi người dùng đã checkout thành công
+- vì đã xóa sản phẩm nên trong trang cá nhân nên có các đơn hàng đã mua
+- Về tính năng order
+  Luồng hoạt động tổng thể – Hybrid Reservation (mở song song)
+  🧩 1. Giai đoạn Đăng ký (Preorder Phase)
+
+Người dùng bấm “Đăng ký nhận thông báo mở bán”.
+
+Hệ thống lưu vào bảng preorders với trạng thái registered.
+
+Không trừ tồn kho thật, chỉ lưu danh sách chờ ưu tiên.
+
+⏰ 2. Khi đến giờ mở bán (Launch Phase)
+
+Khi job chạy (cronjob hoặc worker):
+
+Hệ thống chia sản phẩm ra:
+
+X% hàng (VD: 70%) dành riêng cho người đã preorder.
+
+(100 – X)% hàng (VD: 30%) mở công khai cho tất cả khách hàng.
+
+Với nhóm preorder:
+
+Tạo preorder_slot (giữ chỗ thật trong 4 giờ).
+
+Trừ tồn kho tương ứng.
+
+Gửi email:
+
+“Bạn có slot ưu tiên trong 4 giờ — hãy thanh toán ngay để giữ ưu đãi.”
+
+Với nhóm public:
+
+Vẫn thấy sản phẩm “Còn hàng”, nhưng chỉ mua được phần 30% mở công khai.
+
+⏳ 3. Giai đoạn Giữ slot (Hold Phase)
+
+Trong 4 giờ đầu, user có slot được quyền thanh toán.
+
+Nếu user thanh toán → slot status = purchased.
+
+Nếu quá 4h không thanh toán → slot status = expired, tự động trả lại hàng.
+
+🔁 4. Hết hạn slot (Release Phase)
+
+Cronjob kiểm tra slot mỗi 10–15 phút:
+
+Slot hết hạn → trả lại quantity vào hàng công khai.
+
+Gửi email:
+
+“Slot của bạn đã hết hạn — sản phẩm hiện đang mở bán công khai.”
+
+🌍 5. Giai đoạn Mở công khai (Public Phase)
+
+Sau 4 giờ:
+
+Toàn bộ slot preorder chưa mua được mở bán công khai.
+
+Người dùng chưa đăng ký có thể mua bình thường.
+
+Gửi thông báo cho danh sách public:
+
+“Sản phẩm [Tên] hiện đã mở bán cho tất cả người dùng.”
+
+✅ Kết quả đạt được
+Mục tiêu Kết quả
+Giữ quyền ưu tiên cho người đăng ký ✅ Có slot riêng, có thời gian giới hạn
+Tránh “hết hàng ảo” ✅ Chỉ trừ lượng hàng trong slot, có giới hạn
+Người chưa đăng ký vẫn có cơ hội mua ✅ Có phần hàng mở công khai hoặc mua lại sau 4h
+Dễ quản lý ✅ Cronjob đơn giản, quantity đồng bộ
+Tăng trải nghiệm ✅ Có thông báo, countdown, và nhắc nhở
+
+Nếu bạn muốn bước tiếp, mình có thể giúp bạn viết code mẫu chi tiết (Node.js + SQL) cho toàn bộ 3 job chính:
+
+Job launchPreorder()
+
+Job expireSlot()
+
+Job openPublicSale()
+
+Bạn có muốn mình viết luôn 3 hàm logic này để bạn tích hợp vào backend hiện tại không?

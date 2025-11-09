@@ -7,10 +7,6 @@ const SEPAY_API_KEY = process.env.SEPAY_API_KEY; // từ SePay
 const RECEIVER_BANK_ACCOUNT = process.env.RECEIVER_BANK_ACCOUNT; // số tài khoản bạn nhận tiền
 const RECEIVER_BANK_SHORT = process.env.RECEIVER_BANK_SHORT; // mã ngân hàng short name theo SePay
 
-console.log("Checking env in production:");
-console.log("PUSHER_APP_ID:", SEPAY_API_KEY ? "✅" : "❌");
-console.log("DATABASE_URL:", RECEIVER_BANK_ACCOUNT ? "✅" : "❌");
-console.log("SEPAY_WEBHOOK_SECRET:", RECEIVER_BANK_SHORT ? "✅" : "❌");
 /**
  * Khởi tạo thanh toán cho đơn hàng.
  * Trả về thông tin cần show cho KH (QR code URL hoặc tài khoản ngân hàng).
@@ -58,6 +54,7 @@ async function initiatePayment(order) {
  */
 async function processSePayWebhook(payload, headers) {
   console.log("Chạy vào processSePayWebhook");
+  console.log("payload", payload);
   const transaction = await sequelize.transaction();
   try {
     const txId = payload.id || payload.transactionId;
@@ -66,7 +63,9 @@ async function processSePayWebhook(payload, headers) {
 
     // Lấy orderId từ content
     const match = content.match(/DH(\d+)/i);
+    console.log("match", match);
     if (!match) throw new Error("order_id_not_found");
+    console.log("orderId", parseInt(match[1], 10));
     const orderId = parseInt(match[1], 10);
 
     const order = await Order.findByPk(orderId, {
@@ -132,8 +131,8 @@ async function processSePayWebhook(payload, headers) {
 
     return { success: true, orderId };
   } catch (err) {
-    await transaction.rollback();
     console.log("Webhook Error:", err);
+    await transaction.rollback();
     throw err;
   }
 }

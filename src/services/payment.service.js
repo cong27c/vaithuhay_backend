@@ -55,89 +55,88 @@ async function initiatePayment(order) {
 async function processSePayWebhook(payload, headers) {
   console.log("Chạy vào processSePayWebhook");
   console.log("payload", payload);
-  const transaction = await sequelize.transaction();
+
+  // 1. Lấy thông tin cơ bản từ payload
+  const txId = payload.id || payload.transactionId;
+  const amountIn = parseFloat(payload.transferAmount || payload.amount);
+  const content = payload.content || payload.description;
+
+  // 2. Lấy orderId từ content
+  const match = content.match(/DH(\d+)/i);
+  if (!match) {
+    console.log("Webhook Error: order_id_not_found");
+    return { success: false, message: "order_id_not_found" };
+  }
+  const orderId = parseInt(match[1], 10);
+  console.log("orderId", orderId);
+
   try {
-    const txId = payload.id || payload.transactionId;
-    const amountIn = parseFloat(payload.transferAmount || payload.amount);
-    const content = payload.content || payload.description;
-
-    // Lấy orderId từ content
-    const match = content.match(/DH(\d+)/i);
-    console.log("match", match);
-    if (!match) throw new Error("order_id_not_found");
-    console.log("orderId", parseInt(match[1], 10));
-    const orderId = parseInt(match[1], 10);
-
+    // 3. Tìm order mà không dùng transaction để tránh scope issue
     const order = await Order.findByPk(orderId, {
-      include: [{ model: Payment, as: "payment" }],
-      transaction,
+      include: [{ model: Payment, as: "payment" }], // chắc chắn alias đúng
     });
     console.log("order", order);
 
-    if (!order) throw new Error("order_not_found");
-
-    // Kiểm tra trùng giao dịch
-    const exists = await Payment.findOne({
-      where: { transaction_id: txId },
-      transaction,
-    });
-    if (exists) {
-      await transaction.commit();
-      return { duplicate: true };
+    if (!order) {
+      console.log("Webhook Error: order_not_found");
+      return { success: false, message: "order_not_found" };
     }
 
-    // Tạo Payment record
-    await Payment.create(
-      {
-        order_id: orderId,
-        transaction_id: txId,
-        method: "bank",
-        amount: amountIn,
-        status: "paid",
-        paid_at: new Date(),
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-      { transaction }
-    );
+    // 4. Kiểm tra trùng giao dịch
+    const exists = await Payment.findOne({ where: { transaction_id: txId } });
+    if (exists) {
+      return { success: true, duplicate: true };
+    }
 
-    // 🔥 QUAN TRỌNG: Cập nhật Order status (KHÔNG có payment_status)
-    await order.update(
-      {
-        status: "confirmed", // Chỉ cập nhật order status
-        // KHÔNG có payment_status vì nó không tồn tại trong Order model
-      },
-      { transaction }
-    );
+    // 5. Bắt đầu transaction để tạo Payment & cập nhật Order
+    const transaction = await sequelize.transaction();
+    try {
+      // Tạo Payment record
+      await Payment.create(
+        {
+          order_id: orderId,
+          transaction_id: txId,
+          method: "bank",
+          amount: amountIn,
+          status: "paid",
+          paid_at: new Date(),
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+        { transaction }
+      );
 
-    await transaction.commit();
+      // Cập nhật trạng thái Order
+      await order.update({ status: "confirmed" }, { transaction });
 
-    // 🔥 Trigger Pusher events - ĐÃ SỬA DATA STRUCTURE
-    await Promise.all([
-      // Event thanh toán thành công
-      pusher.trigger(`private-order-${orderId}`, "payment-success", {
-        orderId: order.id,
-        transactionId: txId,
-        paidAt: new Date().toISOString(),
-        amount: amountIn, // Số tiền thực tế thanh toán
-      }),
+      await transaction.commit();
 
-      // Event cập nhật trạng thái order
-      pusher.trigger(`private-order-${orderId}`, "order-status-update", {
-        orderId: order.id,
-        status: "confirmed", // Chỉ order status
-        updatedAt: new Date().toISOString(),
-      }),
-    ]);
+      // Trigger Pusher events
+      await Promise.all([
+        pusher.trigger(`private-order-${orderId}`, "payment-success", {
+          orderId: order.id,
+          transactionId: txId,
+          paidAt: new Date().toISOString(),
+          amount: amountIn,
+        }),
+        pusher.trigger(`private-order-${orderId}`, "order-status-update", {
+          orderId: order.id,
+          status: "confirmed",
+          updatedAt: new Date().toISOString(),
+        }),
+      ]);
 
-    return { success: true, orderId };
+      return { success: true, orderId };
+    } catch (err) {
+      await transaction.rollback();
+      console.log("Transaction Error:", err);
+      return { success: false, message: "transaction_failed" };
+    }
   } catch (err) {
     console.log("Webhook Error:", err);
-    await transaction.rollback();
-    throw err;
+    return { success: false, message: "unexpected_error" };
   }
 }
-
 async function updateOrder(orderId, updates, transaction = null) {
   try {
     const options = transaction ? { transaction } : {};
